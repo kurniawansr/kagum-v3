@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { User } from '../../types';
-import { Users, UserPlus, KeyRound, Trash2, Edit2, CheckCircle2, RefreshCw, ShieldAlert, BadgeCheck } from 'lucide-react';
+import { Users, UserPlus, KeyRound, Trash2, Edit2, CheckCircle2, RefreshCw, ShieldAlert, BadgeCheck, Upload, Download, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export const UserManagementView: React.FC = () => {
   const { users, setUsers } = useApp();
@@ -17,6 +18,7 @@ export const UserManagementView: React.FC = () => {
     birthDate: '',
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [message, setMessage] = useState('');
 
   const generateRandomPassword = () => {
@@ -114,18 +116,142 @@ export const UserManagementView: React.FC = () => {
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus akun pengguna guru ini?')) {
-      setUsers(users.filter((u) => u.id !== id));
-      setMessage('Pengguna berhasil dihapus.');
-      setTimeout(() => setMessage(''), 3000);
-    }
+  const confirmDelete = () => {
+    if (!deletingUser) return;
+    setUsers(users.filter((u) => u.id !== deletingUser.id));
+    setMessage(`Pengguna "${deletingUser.name}" berhasil dihapus.`);
+    setDeletingUser(null);
+    setTimeout(() => setMessage(''), 4000);
   };
 
   const resetPassword = (id: string) => {
     const newPass = generateRandomPassword();
     setUsers(users.map((u) => (u.id === id ? { ...u, password: newPass } : u)));
     setMessage(`Password berhasil direset ke: ${newPass}`);
+    setTimeout(() => setMessage(''), 5000);
+  };
+
+  // Download Excel Template for Teachers Import
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      [
+        'NIP / NIK',
+        'Nama Lengkap Guru & Gelar',
+        'Kelas / Jabatan Pengampuan',
+        'Jenis Kelamin (Laki-laki/Perempuan)',
+        'Tempat Lahir',
+        'Tanggal Lahir (YYYY-MM-DD)',
+        'Email Log In (Opsional)',
+        'Kata Sandi (Opsional)',
+      ],
+      [
+        '198805122015032002',
+        'Ust. Sulistiyani, S.Pd.I.',
+        'Kelas 1A',
+        'Perempuan',
+        'Purbalingga',
+        '1988-05-12',
+        'sulis@madrasah.id',
+        'guru123',
+      ],
+      [
+        '199208102019031005',
+        'Ahmad Fauzi, M.Pd.',
+        'Guru PJOK',
+        'Laki-laki',
+        'Purbalingga',
+        '1992-08-10',
+        'fauzi@madrasah.id',
+        'guru123',
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    ws['!cols'] = [
+      { wch: 22 },
+      { wch: 30 },
+      { wch: 25 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 20 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template Guru');
+    XLSX.writeFile(wb, 'Template_Import_Guru_KAGUM.xlsx');
+  };
+
+  // Import Excel / CSV File
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        if (!data || data.length <= 1) {
+          setMessage('File Excel kosong atau format tidak sesuai template.');
+          return;
+        }
+
+        const newTeachersArr: User[] = [];
+        let countAdded = 0;
+
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i];
+          if (row && (row[0] || row[1])) {
+            const nipVal = String(row[0] || '').trim();
+            const nameVal = String(row[1] || '').trim();
+            if (!nameVal) continue;
+
+            const kelasVal = String(row[2] || 'Guru Kelas').trim();
+            const genderRaw = String(row[3] || 'Laki-laki').trim();
+            const genderVal: 'Laki-laki' | 'Perempuan' =
+              genderRaw.toLowerCase().includes('p') || genderRaw.toLowerCase().includes('perempuan')
+                ? 'Perempuan'
+                : 'Laki-laki';
+            const birthPlaceVal = String(row[4] || '').trim();
+            const birthDateVal = String(row[5] || '').trim();
+            const emailVal =
+              String(row[6] || '').trim() ||
+              (nipVal ? `${nipVal}@madrasah.id` : `guru-${Date.now()}-${i}@madrasah.id`);
+            const passVal = String(row[7] || '').trim() || generateRandomPassword();
+
+            newTeachersArr.push({
+              id: `usr-imp-${Date.now()}-${i}`,
+              name: nameVal,
+              nip: nipVal,
+              kelas: kelasVal,
+              email: emailVal,
+              password: passVal,
+              role: 'guru',
+              gender: genderVal,
+              birthPlace: birthPlaceVal,
+              birthDate: birthDateVal,
+            });
+            countAdded++;
+          }
+        }
+
+        if (countAdded > 0) {
+          setUsers([...users, ...newTeachersArr]);
+          setMessage(`Berhasil mengimpor ${countAdded} data guru dari file Excel/CSV!`);
+        } else {
+          setMessage('Tidak ada data guru valid yang ditemukan pada file.');
+        }
+      } catch (err) {
+        console.error(err);
+        setMessage('Gagal membaca file Excel. Pastikan format file sesuai template.');
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = '';
     setTimeout(() => setMessage(''), 5000);
   };
 
@@ -156,14 +282,50 @@ export const UserManagementView: React.FC = () => {
           </div>
         )}
 
-        {/* Info Login NIP/NIK */}
-        <div className="mb-5 p-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl flex items-start gap-3">
-          <BadgeCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-indigo-950 space-y-0.5">
-            <p className="font-bold">Ketentuan Login Guru:</p>
-            <p className="text-indigo-800">
-              Guru dapat login ke aplikasi menggunakan <strong>NIP/NIK</strong> atau <strong>Email</strong> pada kolom login.
-            </p>
+        {/* Info Login NIP/NIK & Import Excel */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <div className="p-3.5 bg-indigo-50/80 border border-indigo-100 rounded-2xl flex items-start gap-3">
+            <BadgeCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-indigo-950 space-y-0.5">
+              <p className="font-bold">Ketentuan Login Guru:</p>
+              <p className="text-indigo-800 leading-relaxed">
+                Guru dapat login ke aplikasi menggunakan <strong>NIP/NIK</strong> atau <strong>Email</strong> pada kolom login.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-emerald-950">Impor Massal Guru (Excel/CSV)</p>
+                <p className="text-[11px] text-emerald-800 leading-tight mt-0.5">
+                  Unduh template resmi, isi data guru, lalu unggah file.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-[11px] font-bold rounded-xl shadow-2xs transition-all cursor-pointer flex items-center gap-1"
+                title="Unduh Template Excel"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-600" />
+                Template
+              </button>
+
+              <label className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl shadow-2xs transition-all cursor-pointer flex items-center gap-1">
+                <Upload className="w-3.5 h-3.5" />
+                Impor Excel
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -370,9 +532,9 @@ export const UserManagementView: React.FC = () => {
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(usr.id)}
+                        onClick={() => setDeletingUser(usr)}
                         className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Hapus"
+                        title="Hapus Pengguna"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -384,6 +546,44 @@ export const UserManagementView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal for Delete */}
+      {deletingUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-rose-100 text-rose-600 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-base">Hapus Akun Pengguna</h3>
+                <p className="text-xs text-slate-500">Konfirmasi penghapusan data guru</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 leading-relaxed">
+              Apakah Anda yakin ingin menghapus akun guru <span className="font-bold text-slate-900">{deletingUser.name}</span> ({deletingUser.nip || deletingUser.email})?
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Ya, Hapus Pengguna
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

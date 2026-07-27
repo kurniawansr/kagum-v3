@@ -78,15 +78,13 @@ export const IuranSumbanganView: React.FC = () => {
   const handleDeleteItem = (itemId: string) => {
     const itemToDelete = (itemsList || []).find((i) => i.id === itemId);
     if (!itemToDelete) return;
-    if (confirm(`Hapus item "${itemToDelete.title}"?`)) {
-      setItemsList(itemsList.filter((i) => i.id !== itemId));
-      if (selectedItemId === itemId) {
-        const remaining = itemsList.filter((i) => i.id !== itemId);
-        if (remaining.length > 0) setSelectedItemId(remaining[0].id);
-      }
-      setMessage(`Item "${itemToDelete.title}" berhasil dihapus.`);
-      setTimeout(() => setMessage(''), 3000);
+    setItemsList(itemsList.filter((i) => i.id !== itemId));
+    if (selectedItemId === itemId) {
+      const remaining = itemsList.filter((i) => i.id !== itemId);
+      if (remaining.length > 0) setSelectedItemId(remaining[0].id);
     }
+    setMessage(`Item "${itemToDelete.title}" berhasil dihapus.`);
+    setTimeout(() => setMessage(''), 3000);
   };
 
   const handleSaveItemForm = (e: React.FormEvent) => {

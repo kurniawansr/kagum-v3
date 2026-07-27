@@ -49,26 +49,6 @@ export const initialUsers: User[] = [
     role: 'guru',
     avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
   },
-  {
-    id: 'usr-guru-siti',
-    name: 'Siti Aminah, S.Pd.I.',
-    nip: '198803122011012003',
-    kelas: 'Kelas IA',
-    email: 'guru.siti@min1purbalingga.sch.id',
-    password: 'guru123',
-    role: 'guru',
-    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
-  },
-  {
-    id: 'usr-guru2',
-    name: 'Ahmad Fauzi, M.Pd.',
-    nip: '199003152018011003',
-    kelas: 'Kelas 2B',
-    email: 'fauzi@madrasah.id',
-    password: 'guru123',
-    role: 'guru',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-  },
 ];
 
 export const initialSubjects: Subject[] = [

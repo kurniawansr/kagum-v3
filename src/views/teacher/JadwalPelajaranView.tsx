@@ -64,9 +64,7 @@ export const JadwalPelajaranView: React.FC = () => {
   };
 
   const handleResetSlots = () => {
-    if (confirm('Apakah Anda yakin ingin mengembalikan alokasi waktu ke pengaturan default?')) {
-      setTimeAllocations(initialTimeAllocations);
-    }
+    setTimeAllocations(initialTimeAllocations);
   };
 
 

@@ -48,11 +48,9 @@ export const PembayaranAngsurView: React.FC = () => {
   };
 
   const handleDeleteCategory = (id: string) => {
-    if (confirm('Hapus jenis pembayaran angsuran ini?')) {
-      setPaymentCategories((paymentCategories || []).filter((c) => c.id !== id));
-      setMessage('Jenis pembayaran dihapus.');
-      setTimeout(() => setMessage(''), 3000);
-    }
+    setPaymentCategories((paymentCategories || []).filter((c) => c.id !== id));
+    setMessage('Jenis pembayaran berhasil dihapus.');
+    setTimeout(() => setMessage(''), 3000);
   };
 
   const handleAddDepositSubmit = (e: React.FormEvent) => {

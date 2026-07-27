@@ -136,7 +136,7 @@ export const LoginView: React.FC = () => {
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="misal: kagum@minsaga.sch.id / sulis@madrasah.id"
+                placeholder="Masukkan NIP/NIK/email Anda"
                 className="w-full pl-10 pr-4 py-3 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 placeholder-slate-400 transition-all font-medium"
                 required
               />
