@@ -1,0 +1,8 @@
+{
+  "name": "Remix KAGUM - Kumpulan Administrasi Guru Madrasah",
+  "description": "Sistem Informasi Administrasi Guru dan Manajemen Madrasah dengan Manajemen Siswa, Absensi, Penilaian, Keuangan, dan AI Diagnostic Report.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
