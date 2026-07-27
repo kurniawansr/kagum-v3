@@ -38,8 +38,8 @@ export const LoginView: React.FC = () => {
     });
     if (found) return found;
 
-    // 4. Fallback by role if prefix contains 'admin' or 'guru'
-    if (usernamePrefix.includes('admin') && cleanPass === 'admin123') {
+    // 4. Fallback by role if prefix contains 'admin', 'kagum', or 'guru'
+    if ((usernamePrefix.includes('admin') || usernamePrefix.includes('kagum')) && (cleanPass === 'Adm1n456' || cleanPass === 'admin123')) {
       return allUsersList.find((u) => u.role === 'admin');
     }
     if ((usernamePrefix.includes('guru') || usernamePrefix.includes('sulis')) && cleanPass === 'guru123') {
@@ -57,7 +57,7 @@ export const LoginView: React.FC = () => {
     if (user) {
       setCurrentUser(user);
     } else {
-      setErrorMessage('Kredensial tidak ditemukan. Gunakan tombol Akses Cepat di bawah untuk mencoba demo.');
+      setErrorMessage('Kredensial tidak ditemukan. Silakan periksa kembali email/NIP/username dan kata sandi Anda.');
     }
   };
 
@@ -136,7 +136,7 @@ export const LoginView: React.FC = () => {
                 type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="misal: admin@madrasah.id / sulis@madrasah.id"
+                placeholder="misal: kagum@minsaga.sch.id / sulis@madrasah.id"
                 className="w-full pl-10 pr-4 py-3 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 placeholder-slate-400 transition-all font-medium"
                 required
               />

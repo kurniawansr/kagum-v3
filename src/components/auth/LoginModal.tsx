@@ -48,7 +48,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
       if (found) return found;
     }
 
-    if (usernamePrefix.includes('admin')) {
+    if (usernamePrefix.includes('admin') || usernamePrefix.includes('kagum')) {
       return allUsersList.find((u) => u.role === 'admin');
     }
     if (usernamePrefix.includes('guru') || usernamePrefix.includes('sulis')) {
