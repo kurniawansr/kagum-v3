@@ -21,7 +21,7 @@ jobs:
 
       - name: 3. Install Dependencies & Build App
         run: |
-          npm ci || npm install
+          npm install
           npm run build
 
       - name: 4. Sync Build (dist) to cPanel via FTP
