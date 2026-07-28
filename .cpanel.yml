@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/minp1908/public_html/kagum.min1purbalingga.sch.id
+    - /bin/rsync -a --exclude='.git' . $DEPLOYPATH
