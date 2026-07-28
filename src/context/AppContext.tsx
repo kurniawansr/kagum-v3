@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   User,
   SchoolProfile,
@@ -31,6 +31,7 @@ import {
   initialTimeAllocations,
   initialAssessmentAnalyses,
 } from '../data/initialData';
+import { ApiService } from '../services/api';
 
 interface AppContextType {
   currentUser: User | null;
@@ -97,7 +98,7 @@ function loadStorage<T>(key: string, defaultValue: T): T {
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(() =>
-    loadStorage<User | null>('kagum_currentUser', initialUsers[1]) // Default to Guru Sulis
+    loadStorage<User | null>('kagum_currentUser', null)
   );
 
   const [activeTab, setActiveTab] = useState<string>(() =>
@@ -190,30 +191,76 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadStorage<AssessmentAnalysisRecord[]>('kagum_assessmentAnalyses', initialAssessmentAnalyses as AssessmentAnalysisRecord[])
   );
 
-  // Sync state to LocalStorage
+  const isDbLoadedRef = useRef(false);
+
+  // Sync with MySQL backend on initial mount
+  useEffect(() => {
+    let isMounted = true;
+    ApiService.fetchAllData()
+      .then((data) => {
+        if (!isMounted) return;
+        if (data) {
+          if (data.kagum_schoolProfile) setSchoolProfile(data.kagum_schoolProfile);
+          if (data.kagum_users && Array.isArray(data.kagum_users)) setUsers(data.kagum_users);
+          if (data.kagum_students && Array.isArray(data.kagum_students)) setStudents(data.kagum_students);
+          if (data.kagum_subjects && Array.isArray(data.kagum_subjects)) setSubjects(data.kagum_subjects);
+          if (data.kagum_schedules && Array.isArray(data.kagum_schedules)) setSchedules(data.kagum_schedules);
+          if (data.kagum_timeAllocations && Array.isArray(data.kagum_timeAllocations)) setTimeAllocations(data.kagum_timeAllocations);
+          if (data.kagum_calendarEvents && Array.isArray(data.kagum_calendarEvents)) setCalendarEvents(data.kagum_calendarEvents);
+
+          if (data.kagum_attendance && Array.isArray(data.kagum_attendance)) setAttendanceRecords(data.kagum_attendance);
+          if (data.kagum_journals && Array.isArray(data.kagum_journals)) setTeachingJournals(data.kagum_journals);
+          if (data.kagum_habits && Array.isArray(data.kagum_habits)) setHabitRecords(data.kagum_habits);
+          if (data.kagum_grades && Array.isArray(data.kagum_grades)) setGradeRecords(data.kagum_grades);
+          if (data.kagum_remedials && Array.isArray(data.kagum_remedials)) setRemedialRecords(data.kagum_remedials);
+          if (data.kagum_tasks && Array.isArray(data.kagum_tasks)) setStudentTasks(data.kagum_tasks);
+          if (data.kagum_dansos && Array.isArray(data.kagum_dansos)) setDansosRecords(data.kagum_dansos);
+          if (data.kagum_syahriyahJQ && Array.isArray(data.kagum_syahriyahJQ)) setSyahriyahJQRecords(data.kagum_syahriyahJQ);
+          if (data.kagum_paymentCategories && Array.isArray(data.kagum_paymentCategories)) setPaymentCategories(data.kagum_paymentCategories);
+          if (data.kagum_paymentInstallments && Array.isArray(data.kagum_paymentInstallments)) setPaymentInstallments(data.kagum_paymentInstallments);
+          if (data.kagum_donationCategories && Array.isArray(data.kagum_donationCategories)) setDonationCategories(data.kagum_donationCategories);
+          if (data.kagum_donationPayments && Array.isArray(data.kagum_donationPayments)) setDonationPayments(data.kagum_donationPayments);
+          if (data.kagum_assessmentAnalyses && Array.isArray(data.kagum_assessmentAnalyses)) setAssessmentAnalyses(data.kagum_assessmentAnalyses);
+        }
+        isDbLoadedRef.current = true;
+      })
+      .catch(() => {
+        isDbLoadedRef.current = true;
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Sync state to LocalStorage and MySQL
+  const syncHelper = (key: string, value: any) => {
+    localStorage.setItem(key, JSON.stringify(value));
+    if (isDbLoadedRef.current) {
+      ApiService.saveKey(key, value);
+    }
+  };
+
   useEffect(() => { localStorage.setItem('kagum_currentUser', JSON.stringify(currentUser)); }, [currentUser]);
   useEffect(() => { localStorage.setItem('kagum_activeTab', JSON.stringify(activeTab)); }, [activeTab]);
-  useEffect(() => { localStorage.setItem('kagum_schoolProfile', JSON.stringify(schoolProfile)); }, [schoolProfile]);
-  useEffect(() => { localStorage.setItem('kagum_users', JSON.stringify(users)); }, [users]);
-  useEffect(() => { localStorage.setItem('kagum_students', JSON.stringify(students)); }, [students]);
-  useEffect(() => { localStorage.setItem('kagum_subjects', JSON.stringify(subjects)); }, [subjects]);
-  useEffect(() => { localStorage.setItem('kagum_schedules', JSON.stringify(schedules)); }, [schedules]);
-  useEffect(() => { localStorage.setItem('kagum_timeAllocations', JSON.stringify(timeAllocations)); }, [timeAllocations]);
-  useEffect(() => { localStorage.setItem('kagum_calendarEvents', JSON.stringify(calendarEvents)); }, [calendarEvents]);
+  useEffect(() => { syncHelper('kagum_schoolProfile', schoolProfile); }, [schoolProfile]);
+  useEffect(() => { syncHelper('kagum_users', users); }, [users]);
+  useEffect(() => { syncHelper('kagum_students', students); }, [students]);
+  useEffect(() => { syncHelper('kagum_subjects', subjects); }, [subjects]);
+  useEffect(() => { syncHelper('kagum_schedules', schedules); }, [schedules]);
+  useEffect(() => { syncHelper('kagum_timeAllocations', timeAllocations); }, [timeAllocations]);
+  useEffect(() => { syncHelper('kagum_calendarEvents', calendarEvents); }, [calendarEvents]);
 
-  useEffect(() => { localStorage.setItem('kagum_attendance', JSON.stringify(attendanceRecords)); }, [attendanceRecords]);
-  useEffect(() => { localStorage.setItem('kagum_journals', JSON.stringify(teachingJournals)); }, [teachingJournals]);
-  useEffect(() => { localStorage.setItem('kagum_habits', JSON.stringify(habitRecords)); }, [habitRecords]);
-  useEffect(() => { localStorage.setItem('kagum_grades', JSON.stringify(gradeRecords)); }, [gradeRecords]);
-  useEffect(() => { localStorage.setItem('kagum_remedials', JSON.stringify(remedialRecords)); }, [remedialRecords]);
-  useEffect(() => { localStorage.setItem('kagum_tasks', JSON.stringify(studentTasks)); }, [studentTasks]);
-  useEffect(() => { localStorage.setItem('kagum_dansos', JSON.stringify(dansosRecords)); }, [dansosRecords]);
-  useEffect(() => { localStorage.setItem('kagum_syahriyahJQ', JSON.stringify(syahriyahJQRecords)); }, [syahriyahJQRecords]);
-  useEffect(() => { localStorage.setItem('kagum_paymentCategories', JSON.stringify(paymentCategories)); }, [paymentCategories]);
-  useEffect(() => { localStorage.setItem('kagum_paymentInstallments', JSON.stringify(paymentInstallments)); }, [paymentInstallments]);
-  useEffect(() => { localStorage.setItem('kagum_donationCategories', JSON.stringify(donationCategories)); }, [donationCategories]);
-  useEffect(() => { localStorage.setItem('kagum_donationPayments', JSON.stringify(donationPayments)); }, [donationPayments]);
-  useEffect(() => { localStorage.setItem('kagum_assessmentAnalyses', JSON.stringify(assessmentAnalyses)); }, [assessmentAnalyses]);
+  useEffect(() => { syncHelper('kagum_attendance', attendanceRecords); }, [attendanceRecords]);
+  useEffect(() => { syncHelper('kagum_journals', teachingJournals); }, [teachingJournals]);
+  useEffect(() => { syncHelper('kagum_habits', habitRecords); }, [habitRecords]);
+  useEffect(() => { syncHelper('kagum_grades', gradeRecords); }, [gradeRecords]);
+  useEffect(() => { syncHelper('kagum_remedials', remedialRecords); }, [remedialRecords]);
+  useEffect(() => { syncHelper('kagum_tasks', studentTasks); }, [studentTasks]);
+  useEffect(() => { syncHelper('kagum_dansos', dansosRecords); }, [dansosRecords]);
+  useEffect(() => { syncHelper('kagum_syahriyahJQ', syahriyahJQRecords); }, [syahriyahJQRecords]);
+  useEffect(() => { syncHelper('kagum_paymentCategories', paymentCategories); }, [paymentCategories]);
+  useEffect(() => { syncHelper('kagum_paymentInstallments', paymentInstallments); }, [paymentInstallments]);
+  useEffect(() => { syncHelper('kagum_donationCategories', donationCategories); }, [donationCategories]);
+  useEffect(() => { syncHelper('kagum_donationPayments', donationPayments); }, [donationPayments]);
+  useEffect(() => { syncHelper('kagum_assessmentAnalyses', assessmentAnalyses); }, [assessmentAnalyses]);
 
   const activeRole: Role = currentUser?.role || 'guru';
 

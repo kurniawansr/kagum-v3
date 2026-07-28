@@ -2,22 +2,25 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { initialUsers } from '../../data/initialData';
 import { User } from '../../types';
-import { KeyRound, Mail, Eye, EyeOff, BookOpen, GraduationCap, Lock, Heart } from 'lucide-react';
+import { ApiService } from '../../services/api';
+import { KeyRound, Mail, Eye, EyeOff, BookOpen, GraduationCap, Lock, Heart, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const LoginView: React.FC = () => {
-  const { users, setCurrentUser, schoolProfile } = useApp();
+  const { users, setUsers, setCurrentUser, schoolProfile } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const findUser = (inputEmail: string, inputPass: string): User | undefined => {
+  const findUser = (inputEmail: string, inputPass: string, customList?: User[]): User | undefined => {
     const cleanEmail = inputEmail.trim().toLowerCase();
     const cleanPass = inputPass.trim();
     const usernamePrefix = cleanEmail.split('@')[0];
 
-    const allUsersList = [...(users || []), ...initialUsers];
+    const sourceList = customList || users || [];
+    const allUsersList = [...sourceList, ...initialUsers];
 
     // 1. NIP/NIK + password match
     let found = allUsersList.find(
@@ -49,15 +52,32 @@ export const LoginView: React.FC = () => {
     return undefined;
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    const user = findUser(email, password);
+    setLoading(true);
 
-    if (user) {
-      setCurrentUser(user);
-    } else {
-      setErrorMessage('Kredensial tidak ditemukan. Silakan periksa kembali email/NIP/username dan kata sandi Anda.');
+    try {
+      let user = findUser(email, password);
+
+      // If not found in current memory state, fetch fresh users list from MySQL backend
+      if (!user) {
+        const data = await ApiService.fetchAllData();
+        if (data && data.kagum_users && Array.isArray(data.kagum_users)) {
+          setUsers(data.kagum_users);
+          user = findUser(email, password, data.kagum_users);
+        }
+      }
+
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        setErrorMessage('Kredensial tidak ditemukan. Silakan periksa kembali email/NIP/username dan kata sandi Anda.');
+      }
+    } catch {
+      setErrorMessage('Terjadi kesalahan koneksi saat memverifikasi kredensial.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -169,10 +189,20 @@ export const LoginView: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-70 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/25 transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
           >
-            <Lock className="w-4 h-4" />
-            Masuk ke Aplikasi
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Memeriksa Kredensial...
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4" />
+                Masuk ke Aplikasi
+              </>
+            )}
           </button>
         </form>
 
