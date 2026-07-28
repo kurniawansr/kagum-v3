@@ -22,9 +22,6 @@ MYSQL_PORT=3306`;
 -- Kumpulan Administrasi Guru Madrasah
 -- ==========================================
 
-CREATE DATABASE IF NOT EXISTS kagum_db;
-USE kagum_db;
-
 -- Tabel Profil Madrasah
 CREATE TABLE IF NOT EXISTS school_profile (
     id INT AUTO_INCREMENT PRIMARY KEY,

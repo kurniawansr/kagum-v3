@@ -3,9 +3,11 @@
 -- MySQL Database Schema & Initial Seed Data
 -- Standard Kurikulum Merdeka & EMIS Compatible Schema
 -- =============================================================
-
-CREATE DATABASE IF NOT EXISTS kagum_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE kagum_db;
+-- CATATAN CPANEL HOSTING:
+-- Di cPanel, buat database terlebih dahulu via menu "MySQL Databases" 
+-- (misal: minp1908_kagum), lalu buka database tersebut di phpMyAdmin 
+-- dan jalankan query di bawah ini.
+-- =============================================================
 
 -- 1. Table Users
 CREATE TABLE IF NOT EXISTS users (
