@@ -25,7 +25,7 @@ jobs:
           npm run build
 
       - name: 4. Sync Build (dist) to cPanel via FTP
-        uses: SamKirsch/ftp-deploy-action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
