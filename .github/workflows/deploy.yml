@@ -1,33 +1,35 @@
-name: Deploy to cPanel
+name: Automated Build & Deploy to cPanel
 
 on:
   push:
     branches:
       - main
+      - master
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: 2. Setup Node.js
+        uses: actions/checkout@v4
         with:
-          node-version: '18'
+          node-version: 18
 
-      - name: Install Dependencies & Build
+      - name: 3. Install Dependencies & Build App
         run: |
-          npm ci
+          npm ci || npm install
           npm run build
 
-      - name: Deploy via FTP to cPanel
-        uses: SamKirland/FTP-Deploy-Action@v4.3.4
+      - name: 4. Sync Build (dist) to cPanel via FTP
+        uses: SamKirsch/ftp-deploy-action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./dist/
-          server-dir: /public_html/kagum.min1purbalingga.sch.id/
+          server-dir: ./public_html/kagum.min1purbalingga.sch.id/
+          dangerous-clean-slate: false
