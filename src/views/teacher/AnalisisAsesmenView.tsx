@@ -445,7 +445,7 @@ export const AnalisisAsesmenView: React.FC = () => {
     const nextNum = configQuestions.length > 0 ? Math.max(...configQuestions.map((q) => q.number)) + 1 : 1;
     const updated = [
       ...configQuestions,
-      { number: nextNum, type: 'Pilihan Jamak', maxScore: 1, answerKey: 'A' },
+      { number: nextNum, type: 'Pilihan Jamak' as const, maxScore: 1, answerKey: 'A' },
     ];
     setConfigQuestions(updated);
     syncCompactInputs(updated);
@@ -920,7 +920,7 @@ export const AnalisisAsesmenView: React.FC = () => {
 
     const headers = ['No', 'NISN', 'Nama Siswa'];
     currentRecord.questions.forEach((q) => {
-      headers.push(`Soal ${q.number} (${q.type} - Max ${q.maxScore}${q.answerKey ? ` - Kunci: ${q.answerKey}` : ''})`);
+      headers.push('Soal ' + q.number + ' (' + q.type + ' - Max ' + q.maxScore + (q.answerKey ? ' - Kunci: ' + q.answerKey : '') + ')');
     });
 
     const rows = myStudents.map((st, idx) => {

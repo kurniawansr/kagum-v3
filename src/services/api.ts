@@ -13,7 +13,7 @@ export interface SyncResponse {
   data?: any;
 }
 
-const API_BASE_URL = '/api.php';
+const API_BASE_URL = 'api.php';
 
 export const ApiService = {
   /**
@@ -25,8 +25,32 @@ export const ApiService = {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
-      const json: SyncResponse = await res.json();
-      return json;
+      
+      const rawText = await res.text();
+      
+      // Jika server mengembalikan kodingan PHP <?php ... bukannya JSON
+      if (rawText.trim().startsWith('<?php') || rawText.includes('<?php')) {
+        return {
+          status: 'error',
+          code: 'PHP_ENGINE_OFF',
+          message: 'PHP Engine tidak aktif di server cPanel untuk domain/subdomain ini!',
+          detail: `Server mengembalikan kode PHP mentah: "${rawText.trim().slice(0, 50)}..."`,
+          hint: 'Di cPanel: Masuk ke menu "MultiPHP Manager" atau "Select PHP Version", pilih domain/subdomain ini lalu ubah versi PHP ke PHP 8.1 / 8.2 (aktifkan ea-php81 / ea-php82).'
+        };
+      }
+
+      try {
+        const json: SyncResponse = JSON.parse(rawText);
+        return json;
+      } catch (parseErr: any) {
+        return {
+          status: 'error',
+          code: 'INVALID_JSON_RESPONSE',
+          message: 'Server cPanel mengembalikan respons bukan format JSON.',
+          detail: `Respons Server: "${rawText.slice(0, 100)}..."`,
+          hint: 'Pastikan file api.php tidak mengandung output error PHP biasa (misal syntax error) sebelum header JSON.'
+        };
+      }
     } catch (err: any) {
       return {
         status: 'error',
@@ -47,7 +71,9 @@ export const ApiService = {
         headers: { 'Accept': 'application/json' }
       });
       if (!res.ok) return null;
-      const json: SyncResponse = await res.json();
+      const rawText = await res.text();
+      if (rawText.trim().startsWith('<?php')) return null;
+      const json: SyncResponse = JSON.parse(rawText);
       if (json.status === 'success' && json.data) {
         return json.data;
       }
@@ -71,7 +97,8 @@ export const ApiService = {
         },
         body: JSON.stringify(allData)
       });
-      const json: SyncResponse = await res.json();
+      const rawText = await res.text();
+      const json: SyncResponse = JSON.parse(rawText);
       return json;
     } catch (err: any) {
       return {

@@ -13,7 +13,9 @@ interface ContributionItem {
 }
 
 export const IuranSumbanganView: React.FC = () => {
-  const { students, contributionRecords, setContributionRecords, currentUser, schoolProfile } = useApp();
+  const { students, donationPayments, setDonationPayments, currentUser, schoolProfile } = useApp() as any;
+  const contributionRecords = donationPayments || [];
+  const setContributionRecords = setDonationPayments || (() => {});
   const currentClass = currentUser?.kelas || 'Kelas 1A';
   const myStudents = students.filter((s) => s.kelas === currentClass);
 

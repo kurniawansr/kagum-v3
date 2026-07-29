@@ -94,7 +94,7 @@ export const RemedialView: React.FC = () => {
         init,
         rem,
         currentSubject.kktp,
-        rem >= currentSubject.kktp ? 'Tuntas Remedial' : 'Belum Tuntas',
+        Number(rem) >= Number(currentSubject.kktp) ? 'Tuntas Remedial' : 'Belum Tuntas',
       ];
     });
 
@@ -126,7 +126,7 @@ export const RemedialView: React.FC = () => {
       const init = grd ? grd.score : 65;
       const rem = remedialScores[st.id] || currentSubject.kktp;
 
-      return [idx + 1, st.nisn, st.name, init, rem, currentSubject.kktp, rem >= currentSubject.kktp ? 'Tuntas Remedial' : 'Belum Tuntas'];
+      return [idx + 1, st.nisn, st.name, init, rem, currentSubject.kktp, Number(rem) >= Number(currentSubject.kktp) ? 'Tuntas Remedial' : 'Belum Tuntas'];
     });
 
     exportToExcel(
@@ -209,7 +209,7 @@ export const RemedialView: React.FC = () => {
               onChange={(e) => setSelectedAH(parseInt(e.target.value, 10))}
               className="w-full px-3 py-1.5 border border-slate-200 rounded-lg bg-white font-semibold text-slate-800"
             >
-              {Array.from({ length: currentSubject.lingkupMateriCount }).map((_, i) => (
+              {Array.from({ length: (currentSubject as any).lingkupMateriCount || 4 }).map((_, i) => (
                 <option key={i + 1} value={i + 1}>
                   AH {i + 1} (Sumatif Lingkup Materi {i + 1})
                 </option>

@@ -275,8 +275,8 @@ export const AsesmenNilaiView: React.FC = () => {
 
     // 4. Nilai Akhir (NA)
     // Formula: (Rata Sumatif AH * sumatifWeight%) + (SAS * sasWeight%)
-    const sumativeWeightFraction = (currentSubject.sumatifWeight || 60) / 100;
-    const sasWeightFraction = (currentSubject.sasWeight || 40) / 100;
+    const sumativeWeightFraction = ((currentSubject as any).sumatifWeight || 60) / 100;
+    const sasWeightFraction = ((currentSubject as any).sasWeight || 40) / 100;
 
     const finalScore = Math.round(
       avgSumatifAH * sumativeWeightFraction + sasScore * sasWeightFraction
@@ -642,11 +642,11 @@ export const AsesmenNilaiView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
               <span className="text-[10px] font-bold text-indigo-500 uppercase block">Bobot Sumatif (AH)</span>
-              <p className="font-extrabold text-indigo-900 text-sm mt-0.5">{currentSubject.sumatifWeight}%</p>
+              <p className="font-extrabold text-indigo-900 text-sm mt-0.5">{(currentSubject as any).sumatifWeight ?? 60}%</p>
             </div>
             <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-100">
               <span className="text-[10px] font-bold text-amber-600 uppercase block">Bobot SAS</span>
-              <p className="font-extrabold text-amber-900 text-sm mt-0.5">{currentSubject.sasWeight}%</p>
+              <p className="font-extrabold text-amber-900 text-sm mt-0.5">{(currentSubject as any).sasWeight ?? 40}%</p>
             </div>
             <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-100">
               <span className="text-[10px] font-bold text-emerald-600 uppercase block">KKTP</span>

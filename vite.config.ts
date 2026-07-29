@@ -7,6 +7,23 @@ export default defineConfig(() => {
   return {
     base: './',
     plugins: [react(), tailwindcss()],
+    build: {
+      target: 'es2015',
+      modulePreload: false,
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('xlsx')) return 'vendor-xlsx';
+              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('dompurify')) return 'vendor-pdf';
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('motion')) return 'vendor-motion';
+            }
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

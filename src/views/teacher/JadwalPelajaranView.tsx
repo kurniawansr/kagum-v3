@@ -143,7 +143,7 @@ export const JadwalPelajaranView: React.FC = () => {
       setEditingId(null);
       setShowAddForm(false);
     }
-    setMessage(`Jadwal ${name ? `"${name}"` : ''} berhasil dihapus.`);
+    setMessage('Jadwal ' + (name ? '"' + name + '"' : '') + ' berhasil dihapus.');
     setTimeout(() => setMessage(''), 3000);
   };
 

@@ -506,7 +506,7 @@ export const UserManagementView: React.FC = () => {
                   </td>
                   <td className="p-3 text-slate-600">{usr.gender || '-'}</td>
                   <td className="p-3 text-slate-600">
-                    {usr.birthPlace || usr.birthDate ? `${usr.birthPlace || ''} ${usr.birthDate ? `(${usr.birthDate})` : ''}` : '-'}
+                    {usr.birthPlace || usr.birthDate ? (usr.birthPlace || '') + (usr.birthDate ? ` (${usr.birthDate})` : '') : '-'}
                   </td>
                   <td className="p-3 font-medium text-emerald-700">{usr.kelas}</td>
                   <td className="p-3 text-slate-600">{usr.email}</td>

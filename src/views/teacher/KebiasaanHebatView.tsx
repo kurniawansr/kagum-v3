@@ -247,7 +247,7 @@ _${teacherName}_`;
           studentName: selectedStudent.name,
           className: currentClass,
           teacherName: currentUser?.name || 'Wali Kelas',
-          schoolName: schoolProfile?.name || 'Madrasah Ibtidaiyah',
+          schoolName: schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
           habitsData: filteredRecs,
           records: filteredRecs,
           attendanceData: filteredAtts,
@@ -265,7 +265,7 @@ _${teacherName}_`;
             selectedStudent.name,
             currentClass,
             currentUser?.name || 'Wali Kelas',
-            schoolProfile?.name || 'Madrasah Ibtidaiyah',
+            schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
             aiStartDate,
             aiEndDate,
             filteredRecs
@@ -282,7 +282,7 @@ _${teacherName}_`;
           selectedStudent?.name || 'Siswa',
           currentClass,
           currentUser?.name || 'Wali Kelas',
-          schoolProfile?.name || 'Madrasah Ibtidaiyah',
+          schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
           aiStartDate,
           aiEndDate,
           filteredRecs
