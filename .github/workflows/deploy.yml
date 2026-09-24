@@ -1,35 +1,38 @@
-name: Automated Build & Deploy to cPanel
+name: Deploy KAGUM to cPanel
 
 on:
   push:
     branches:
       - main
       - master
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
+    name: Build & Deploy ke cPanel Hosting
     runs-on: ubuntu-latest
-
     steps:
-      - name: 1. Checkout Code
+      - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
       - name: 2. Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - name: 3. Install Dependencies & Build App
-        run: |
-          npm install
-          npm run build
+      - name: 3. Install Dependencies
+        run: npm ci
 
-      - name: 4. Sync Build (dist) to cPanel via FTP
+      - name: 4. Compile React & Siapkan Build cPanel
+        run: npm run build
+
+      - name: 5. Deploy Otomatis ke cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./dist/
-          server-dir: ./public_html/kagum.min1purbalingga.sch.id/
+          server: ${{ secrets.FTP_SERVER || secrets.CPANEL_FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME || secrets.CPANEL_FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD || secrets.CPANEL_FTP_PASSWORD }}
+          local-dir: .cpanel-build/
+          server-dir: public_html/kagum.min1purbalingga.sch.id/
           dangerous-clean-slate: false

@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
-import { HeartHandshake, Save, Printer, FileSpreadsheet, FileText, CheckCircle2 } from 'lucide-react';
+import { HeartHandshake, Save, Printer, FileSpreadsheet, FileText, CheckCircle2, Edit2, Lock, Check } from 'lucide-react';
 import { INDONESIAN_MONTH_NAMES, getFridaysInMonth } from '../../../utils/calendarUtils';
 import { exportToExcel, exportToPdf } from '../../../utils/exportUtils';
+import { ApiService } from '../../../services/api';
 
 export const DansosInfaqView: React.FC = () => {
-  const { students, dansosRecords, setDansosRecords, currentUser, schoolProfile } = useApp();
+  const { students, dansosRecords, setDansosRecords, currentUser, schoolProfile, logActivity } = useApp();
   const currentClass = currentUser?.kelas || 'Kelas IA';
   const myStudents = students.filter((s) => s.kelas === currentClass);
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [printDate, setPrintDate] = useState(new Date().toISOString().split('T')[0]);
   const [message, setMessage] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const baseYear = parseInt(schoolProfile.tahunAjaran.split('/')[0], 10) || 2026;
   const monthYear = selectedMonth >= 6 ? baseYear : baseYear + 1;
@@ -25,16 +28,17 @@ export const DansosInfaqView: React.FC = () => {
   const handleSetMassNominal = (dateStr: string, amount: number) => {
     setMassNominals((prev) => ({ ...prev, [dateStr]: amount }));
     // Update all students' records for this date
-    const updatedRecs = dansosRecords.filter((r) => r.date !== dateStr);
+    const updatedRecs = (dansosRecords || []).filter((r) => r.date !== dateStr);
     const newRecords = myStudents.map((st) => ({
       id: `dansos-${st.id}-${dateStr}`,
       studentId: st.id,
       date: dateStr,
       amount,
     }));
-    setDansosRecords([...updatedRecs, ...newRecords]);
-    setMessage(`Nominal Rp ${amount.toLocaleString('id-ID')} berhasil diterapkan untuk tanggal ${dateStr}!`);
-    setTimeout(() => setMessage(''), 3000);
+    const merged = [...updatedRecs, ...newRecords];
+    setDansosRecords(merged);
+    setMessage(`Nominal Rp ${amount.toLocaleString('id-ID')} diterapkan untuk tanggal ${dateStr}. Klik Simpan Data di bawah untuk menyimpan.`);
+    setTimeout(() => setMessage(''), 4000);
   };
 
   const handleStudentAmountChange = (studentId: string, dateStr: string, amount: number) => {
@@ -51,6 +55,25 @@ export const DansosInfaqView: React.FC = () => {
           amount,
         },
       ]);
+    }
+  };
+
+  const handleSaveData = async () => {
+    setIsSaving(true);
+    try {
+      localStorage.setItem('kagum_dansos', JSON.stringify(dansosRecords));
+      await ApiService.saveKey('kagum_dansos', dansosRecords);
+      if (logActivity) {
+        logActivity('Simpan Keuangan', `Menyimpan data Dansos & Infaq Jum'at Bulan ${INDONESIAN_MONTH_NAMES[selectedMonth]} ${monthYear} (${currentClass})`, 'Keuangan');
+      }
+      setIsEditing(false);
+      setMessage(`Alhamdulillah, data Dansos & Infaq Jum'at Bulan ${INDONESIAN_MONTH_NAMES[selectedMonth]} berhasil disimpan permanen ke database!`);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (err) {
+      setMessage('Data disimpan ke penyimpanan lokal.');
+      setTimeout(() => setMessage(''), 4000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -291,10 +314,15 @@ export const DansosInfaqView: React.FC = () => {
                           type="number"
                           step={500}
                           min={0}
+                          disabled={!isEditing}
                           placeholder="0"
                           value={amount === 0 ? '' : amount}
                           onChange={(e) => handleStudentAmountChange(st.id, dStr, parseInt(e.target.value, 10) || 0)}
-                          className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-center font-bold text-slate-800 bg-white"
+                          className={`w-20 px-2 py-1 border rounded-lg text-center font-bold text-slate-800 transition-colors ${
+                            isEditing
+                              ? 'bg-white border-amber-300 ring-1 ring-amber-200 focus:ring-amber-500'
+                              : 'bg-slate-50/70 border-slate-200 text-slate-700 cursor-not-allowed'
+                          }`}
                         />
                       </td>
                     );
@@ -334,6 +362,55 @@ export const DansosInfaqView: React.FC = () => {
             </tr>
           </tbody>
         </table>
+
+        {/* Action Panel Below Table */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200 bg-slate-50/80 p-4 rounded-xl">
+          <div className="flex items-center gap-2 text-xs">
+            {isEditing ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">
+                <Edit2 className="w-3.5 h-3.5 text-amber-700" />
+                Mode Edit Aktif — Silakan ubah nominal pada tabel lalu klik Simpan Data
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium bg-slate-200/80 text-slate-700 border border-slate-300">
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                Mode Lihat (Terkunci) — Klik tombol Edit untuk melakukan perubahan
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => setIsEditing(!isEditing)}
+              className={`flex items-center gap-1.5 px-4 py-2 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs ${
+                isEditing
+                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  : 'bg-amber-500 hover:bg-amber-600 text-white'
+              }`}
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              {isEditing ? 'Batal / Kunci' : 'Edit Data'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveData}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-5 py-2 bg-emerald-800 hover:bg-emerald-900 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? 'Menyimpan...' : 'Simpan Data'}
+            </button>
+          </div>
+        </div>
+
+        {message && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{message}</span>
+          </div>
+        )}
       </div>
     </div>
   );

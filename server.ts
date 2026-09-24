@@ -49,6 +49,27 @@ async function startServer() {
     return res.status(404).json({ error: "File cpanel-siap-upload.zip tidak ditemukan." });
   });
 
+  // Handle /api.php on Node.js Dev/Preview server (before static middleware)
+  app.all("/api.php", (req, res) => {
+    const action = req.query.action || req.body?.action || "status";
+
+    if (action === "download_zip") {
+      return res.redirect("/cpanel-siap-upload.zip");
+    }
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.status(200).json({
+      status: "error",
+      code: "PREVIEW_ENVIRONMENT",
+      is_preview: true,
+      php_version: null,
+      message: "Anda saat ini membuka aplikasi di Link Preview AI Studio (Node.js/Cloud Run)",
+      detail: "Server preview di AI Studio menggunakan Node.js sehingga kode PHP tidak diproses oleh PHP engine cPanel hosting Anda.",
+      hint: "Perubahan versi PHP 8.1 / 8.2 yang Anda lakukan di cPanel hanya berlaku di server cPanel Anda. Silakan masukkan URL website cPanel Anda di menu 'Panduan Deploy MySQL' untuk menghubungkan & menguji koneksi langsung ke server cPanel."
+    });
+  });
+
   // Serve static assets from public
   app.use(express.static(path.join(process.cwd(), "public")));
 

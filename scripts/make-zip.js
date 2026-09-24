@@ -18,8 +18,8 @@ if (fs.existsSync(distDir)) {
   fs.cpSync(distDir, tempBuildDir, { recursive: true });
 }
 
-// Copy public assets if needed (api.php, .htaccess, schema.sql)
-const extraFiles = ['api.php', '.htaccess', 'schema.sql', 'favicon.svg', 'favicon.jpg', 'logo.jpg'];
+// Copy public assets if needed (api.php, update.php, .htaccess, schema.sql)
+const extraFiles = ['api.php', 'update.php', '.htaccess', 'schema.sql', 'favicon.svg', 'favicon.jpg', 'logo.jpg'];
 for (const file of extraFiles) {
   const src = path.join(publicDir, file);
   const dest = path.join(tempBuildDir, file);

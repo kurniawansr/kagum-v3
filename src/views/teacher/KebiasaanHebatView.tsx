@@ -178,43 +178,186 @@ export const KebiasaanHebatView: React.FC = () => {
     const socialPct = Math.round((socialCount / totalDays) * 100);
     const sleepPct = Math.round((sleepCount / totalDays) * 100);
 
+    // Dynamic hash seed to generate distinctive variation even across same scores
+    const seed = `${studentName}_${startDate}_${endDate}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const pickVariant = (variants: string[], offset: number = 0) => {
+      const idx = Math.abs(seed + offset) % variants.length;
+      return variants[idx];
+    };
+
+    const wakeUpNotes = wakeUpPct >= 85
+      ? [
+          `Masya Allah, ananda ${studentName} menunjukkan disiplin luar biasa dalam bangun pagi sebelum Subuh. Wajahnya senantiasa ceria dan siap memulai hari dengan penuh energi.`,
+          `Alhamdulillah, ananda sangat teratur bangun pagi tanpa perlu dibangunkan berkali-kali. Kebiasaan mulia ini sangat mendukung kesiapan belajarnya di madrasah.`,
+          `Kedisiplinan bangun pagi ananda patut diapresiasi setinggi-tingginya. Kebugaran dan ketepatan waktunya selalu terjaga dengan sangat baik.`
+        ]
+      : wakeUpPct >= 65
+      ? [
+          `Ananda ${studentName} sudah cukup baik dalam membiasakan bangun pagi, meski sesekali di hari libur masih membutuhkan sedikit dorongan hangat dari keluarga.`,
+          `Alhamdulillah ada kemajuan yang baik dalam bangun pagi. Keteraturannya terus berkembang positif berkat bimbingan rutin Bapak/Ibu.`,
+          `Sebagian besar hari ananda dapat bangun pagi tepat waktu, tinggal menjaga konsistensi terutama saat udara pagi terasa dingin atau usai kegiatan malam.`
+        ]
+      : [
+          `Ananda masih memerlukan pendampingan santun agar dapat bangun lebih awal di pagi hari. Pengaturan jadwal tidur yang lebih dini akan sangat membantu ananda terbangun segar.`,
+          `Kebiasaan bangun pagi ananda masih dalam tahap penyesuaian. Mohon terus diberikan sentuhan lembut dan motivasi agar ananda tidak merasa terburu-buru menyambut pagi.`
+        ];
+
+    const prayerNotes = prayerPct >= 85
+      ? [
+          `Alhamdulillah, komitmen sholat 5 waktu ananda ${studentName} sangat membanggakan. Khususnya sholat Subuh dan Maghrib terpantau istiqomah dengan kesadaran diri yang tinggi.`,
+          `Masya Allah, kecintaan ananda pada ibadah sholat 5 waktu berkembang sangat subur. Ananda senantiasa antusias saat adzan berkumandang dan menjaga kekhusyukannya.`,
+          `Ibadah sholat ananda tergolong istimewa. Kedisiplinan sholat 5 waktunya menjadi pondasi akhlak yang sangat kuat bagi kepribadiannya.`
+        ]
+      : prayerPct >= 65
+      ? [
+          `Pelaksanaan sholat ananda sudah cukup baik dan rajin, terutama pada sholat Dhuhur, Ashar, dan Maghrib. Perlu sedikit rangkulan hangat untuk waktu Subuh dan Isya.`,
+          `Ananda senantiasa bersemangat menjalankan sholat, tinggal membiasakan untuk segera mengambil wudhu tepat waktu tanpa menunda-nunda.`,
+          `Alhamdulillah kesadaran ibadah ananda terus bertumbuh. Terus ajak sholat berjamaah bersama keluarga agar ananda kian termotivasi.`
+        ]
+      : [
+          `Ibadah sholat 5 waktu ananda masih memerlukan pendampingan dan teladan langsung. Pendekatan dengan cerita keteladanan Nabi akan sangat menyentuh hatinya.`,
+          `Ananda sedang berproses menyukai ibadah sholat. Mohon diajak sholat berdampingan di rumah dengan suasana yang penuh cinta dan kegembiraan.`
+        ];
+
+    const exerciseNotes = exercisePct >= 75
+      ? [
+          `Ananda ${studentName} memiliki ketahanan fisik dan kelincahan gerak yang sangat baik. Ia aktif mengikuti senam dan olahraga dengan ceria.`,
+          `Kebugaran fisik ananda sangat terpelihara berkat kegemarannya bergerak aktif dan berolahraga secara teratur.`,
+          `Jiwa sportivitas dan semangat bergerak ananda sangat prima, menjadikannya pribadi yang berenergi positif sepanjang hari.`
+        ]
+      : exercisePct >= 50
+      ? [
+          `Aktivitas fisik ananda cukup terjaga. Alangkah indahnya jika di akhir pekan ananda diajak jalan pagi santai bersama keluarga.`,
+          `Ananda sudah mau bergerak aktif, disarankan untuk menyelingi waktu santai di rumah dengan permainan gerak ringan yang menyenangkan.`
+        ]
+      : [
+          `Ananda tampak lebih menyukai kegiatan tenang di dalam ruangan. Mohon diajak bergerak atau bersepeda santai 15 menit agar daya tahan tubuhnya kian prima.`,
+          `Perlu dorongan santai agar ananda lebih gemar menggerakkan badan dan berolahraga secara berkala demi kesehatan jangka panjangnya.`
+        ];
+
+    const mealsNotes = mealsPct >= 80
+      ? [
+          `Pola makan ananda sangat teratur dengan asupan bergizi seimbang. Sarapan paginya senantiasa menjadi bekal energi konsentrasi belajar yang prima.`,
+          `Alhamdulillah, ananda tidak pemilih makanan dan gemar menyantap makanan bergizi, termasuk sayur dan buah yang disediakan.`,
+          `Kebiasaan makan sehat ananda sangat baik, menjaga daya tahan tubuh dan imunitasnya tetap optimal selama masa belajar.`
+        ]
+      : mealsPct >= 60
+      ? [
+          `Pola makan ananda cukup baik. Mohon diingatkan untuk senantiasa membiasakan sarapan sebelum berangkat dan memperbanyak minum air putih hangat.`,
+          `Keteraturan makan ananda sudah lumayan rapi, tinggal memperkaya variasi sayur dan buah segar untuk menunjang tumbuh kembangnya.`
+        ]
+      : [
+          `Perlu perhatian ekstra pada jadwal sarapan dan asupan gizi seimbang ananda agar energinya selalu tercukupi hingga siang hari.`,
+          `Mohon didampingi kebiasaan makannya agar lebih teratur dan mengurangi konsumsi jajanan manis atau makanan instan.`
+        ];
+
+    const learnNotes = learnPct >= 80
+      ? [
+          `Rasa ingin tahu ananda ${studentName} begitu tinggi! Ia gemar membaca, menyimak penjelasan guru, dan mandiri dalam menyelesaikan tugas-tugasnya.`,
+          `Masya Allah, ananda memiliki etos belajar yang cemerlang dan daya nalar kritis. Buku dan kegiatan eksplorasi adalah sahabat karibnya.`,
+          `Ananda sangat tekun dan menikmati setiap proses pembelajaran, baik saat belajar di kelas maupun saat mengulang pelajaran di rumah.`
+        ]
+      : learnPct >= 60
+      ? [
+          `Semangat belajar ananda sudah cukup baik. Suasana belajar di rumah yang tenang dan bebas gawai akan semakin melejitkan potensinya.`,
+          `Ananda memiliki bakat yang baik, tinggal dibantu mengelola konsistensi waktu belajar harian sekitar 30 menit secara istiqomah.`
+        ]
+      : [
+          `Ananda membutuhkan metode belajar yang interaktif dan menyenangkan agar rasa belajarnya tumbuh tanpa merasa terbebani.`,
+          `Mohon dampingi ananda saat mengulang pelajaran dengan penuh kesabaran serta berikan pujian tulus pada setiap usaha kecilnya.`
+        ];
+
+    const socialNotes = socialPct >= 80
+      ? [
+          `Ananda memiliki kelembutan hati, santun bertutur kata, serta sangat peduli dan gemar menolong teman-temannya di kelas.`,
+          `Karakter sosial ananda luar biasa hangat. Ia mudah bergaul, menghargai perbedaan, dan menjadi teladan kerukunan bagi kawan-kawannya.`,
+          `Empati sosial ananda sangat tinggi, ia tidak segan berbagi dan selalu menjaga perasaan orang lain dengan akhlak terpuji.`
+        ]
+      : socialPct >= 60
+      ? [
+          `Sikap sosial ananda baik dan menyenangkan. Terus bimbing ananda untuk lebih percaya diri dalam berinteraksi dan mengemukakan pendapat positif.`,
+          `Ananda dapat berteman dengan rukun, sesekali perlu diingatkan tentang indahnya berbagi dan saling memaafkan.`
+        ]
+      : [
+          `Ananda masih dalam tahap belajar mengekspresikan empati dan kerjasama. Lingkungan keluarga yang penuh kehangatan akan mengasah kepekaan sosialnya.`,
+          `Bimbing ananda untuk lebih terbuka dan senang menyapa sesama di lingkungan sekitar rumah.`
+        ];
+
+    const sleepNotes = sleepPct >= 80
+      ? [
+          `Kedisiplinan istirahat malam ananda sangat baik, tidur tepat waktu sehingga waktu istirahat otaknya sangat cukup untuk regenerasi sel tubuh.`,
+          `Ananda pandai mengelola waktu malamnya, istirahat tidur sebelum larut malam membuat paginya senantiasa cerah ceria.`,
+          `Alhamdulillah, ananda teratur tidur cepat. Pola hidup seimbang ini sangat terasa pada daya tangkapnya di pagi hari.`
+        ]
+      : sleepPct >= 60
+      ? [
+          `Jam tidur malam ananda cukup teratur, namun sesekali masih tidur agak larut. Pembatasan layar HP sebelum tidur akan sangat membantu lelapnya.`,
+          `Mohon bantu ananda menuntaskan aktivitas belajar lebih awal agar waktu tidurnya dapat dimulai sebelum pukul 21.00 WIB.`
+        ]
+      : [
+          `Jam istirahat malam ananda masih sering larut. Hal ini dapat mempengaruhi konsentrasi belajarnya di madrasah keesokan harinya.`,
+          `Mohon tegas dan bijak dalam mematikan televisi dan gawai maksimal pukul 20.00 WIB agar ananda terbiasa tidur lebih awal.`
+        ];
+
+    // Dynamic parent recommendations tailored to student's profile & period
+    const parentRecommendationsPool = [
+      `*Sentuhan Kasih & Pelukan Hangat*: Luangkan waktu 5-10 menit setiap malam sebelum tidur untuk mendengarkan cerita keseharian ananda ${studentName} dengan penuh perhatian dan kasih sayang.`,
+      `*Apresiasi Prestasi Kecil*: Berikan pujian spesifik (misal: "Ibu/Ayah bangga ananda sudah sholat tepat waktu hari ini") untuk terus memupuk rasa percaya dirinya.`,
+      `*Keteladanan Ibadah Berjamaah*: Ajak ananda sholat berjamaah bersama seluruh keluarga di rumah dan membaca doa harian bersama untuk mempererat ikatan ruhani keluarga.`,
+      `*Zona Bebas Gadget*: Buat kesepakatan manis di rumah berupa waktu santai tanpa ponsel pintar/TV antara Maghrib hingga Isya, diisi dengan tadarus atau diskusi ringan.`,
+      `*Pojok Baca & Diskusi Keluarga*: Sediakan buku bacaan bergambar/cerita islami yang menarik dan ajak ananda berdiskusi tentang pesan moral di dalamnya secara menyenangkan.`,
+      `*Aktivitas Kebugaran Bersama*: Luangkan waktu di hari Ahad pagi untuk jalan santai atau senam ringan bersama keluarga demi menjaga imunitas dan keceriaan ananda.`,
+      `*Menu Gizi Warna-Warni*: Libatkan ananda dalam memilih buah segar atau sayuran kesukaannya untuk sarapan, agar selera makan sehatnya kian bertumbuh.`,
+      `*Rutinitas Menjelang Tidur*: Ciptakan suasana kamar yang redup, nyaman, dan bacakan kisah teladan para sahabat Nabi untuk mengantarkan tidur ananda lebih awal dan tenang.`
+    ];
+
+    // Pick 3-4 distinct recommendations using seed
+    const selectedRecs: string[] = [];
+    let offset = 0;
+    while (selectedRecs.length < 4 && offset < 10) {
+      const item = pickVariant(parentRecommendationsPool, offset * 3);
+      if (!selectedRecs.includes(item)) {
+        selectedRecs.push(item);
+      }
+      offset++;
+    }
+
     return `*LAPORAN ANALISIS DIAGNOSTIK 7 KEBIASAAN ANAK INDONESIA HEBAT*
 
 Assalamu'alaikum Wr. Wb.
 Bapak/Ibu/Wali Murid dari ananda *${studentName}*,
 
-Berikut hasil evaluasi diagnostik & analisis perkembangan *7 Kebiasaan Anak Indonesia Hebat* ananda periode *${formatIndonesianDate(startDate)} s/d ${formatIndonesianDate(endDate)}*:
+Semoga Bapak/Ibu dan sekeluarga senantiasa berada dalam naungan rahmat, kesehatan, dan keberkahan dari Allah SWT. Kami haturkan terima kasih yang tulus atas bimbingan penuh kasih sayang yang terus dicurahkan kepada ananda di rumah.
+
+Berikut kami sampaikan rangkuman evaluasi perkembangan *7 Kebiasaan Anak Indonesia Hebat* ananda periode *${formatIndonesianDate(startDate)} s/d ${formatIndonesianDate(endDate)}* (${totalDays} Hari Pemantauan):
 
 📌 *KESIMPULAN EVALUASI PER KEBIASAAN:*
 
 *1. Bangun Pagi (${wakeUpPct}%)*
-${wakeUpPct >= 80 ? 'Ananda sangat konsisten dan disiplin bangun pagi sebelum Subuh dengan kondisi segar dan bersemangat.' : 'Ananda sudah menunjukkan kemajuan bangun pagi, mohon terus didampingi terutama saat hari libur.'}
+${pickVariant(wakeUpNotes, 1)}
 
 *2. Beribadah / Sholat 5 Waktu (${prayerPct}%)*
-${prayerPct >= 80 ? 'Alhamdulillah, pelaksanaan ibadah sholat 5 waktu (Subuh, Dhuhur, Ashar, Maghrib, Isya) tergolong sangat tertib dan rajin.' : 'Pelaksanaan sholat 5 waktu cukup teratur. Perlu dorongan santun terutama untuk kebiasaan sholat Subuh dan Isya.'}
+${pickVariant(prayerNotes, 2)}
 
 *3. Berolahraga (${exercisePct}%)*
-${exercisePct >= 75 ? 'Ananda aktif bergerak dan rutin berolahraga untuk menjaga kebugaran jasmani.' : 'Ananda disarankan untuk diajak aktif berolahraga ringan atau olah tubuh minimal 15-30 menit sehari.'}
+${pickVariant(exerciseNotes, 3)}
 
 *4. Makan Sehat & Bergizi (${mealsPct}%)*
-${mealsPct >= 80 ? 'Pola makan ananda terpantau teratur (Pagi, Siang, Malam) dengan gizi yang baik dan seimbang.' : 'Pola makan cukup teratur, mohon ditingkatkan konsumsi sayur, buah, serta air putih di rumah.'}
+${pickVariant(mealsNotes, 4)}
 
 *5. Gemar Belajar (${learnPct}%)*
-${learnPct >= 80 ? 'Ananda memiliki motivasi belajar yang tinggi, rajin membaca, dan disiplin mengerjakan tugas sekolah.' : 'Ananda sudah mau belajar, disarankan membuat jadwal belajar yang rutin dan bebas dari gangguan media.'}
+${pickVariant(learnNotes, 5)}
 
 *6. Bermasyarakat (${socialPct}%)*
-${socialPct >= 80 ? 'Sangat ramah, santun, peduli kepada teman, dan memiliki jiwa kepedulian sosial yang amat baik.' : 'Sikap sosial ananda baik, terus latih sikap berbagi, empati, dan tolong-menolong di lingkungan rumah.'}
+${pickVariant(socialNotes, 6)}
 
 *7. Tidur Cepat (${sleepPct}%)*
-${sleepPct >= 80 ? 'Disiplin mengakhiri aktivitas malam dan tidur tepat waktu sehingga kesegaran fisik selalu terjaga.' : 'Jam tidur malam ananda terkadang masih larut. Mohon batasi penggunaan HP/TV setelah pukul 20.00 WIB.'}
+${pickVariant(sleepNotes, 7)}
 
-💡 *REKOMENDASI & SARAN KEBIAASAAN UNTUK ORANG TUA:*
-1. *Apresiasi Berkelanjutan*: Berikan pujian hangat atau *reward* imaterial setiap kali ananda berhasil menjalankan kebiasaan baik secara mandiri.
-2. *Keteladanan Ibadah & Pembiasaan*: Ajak ananda sholat berjamaah serta membaca Al-Qur'an/buku bersama untuk membangun karakter religius & gemar membaca.
-3. *Manajemen Screen-Time*: Terapkan aturan pembatasan gawai (HP) dan televisi maksimal pukul 20.00 agar waktu istirahat malam ananda optimal.
-4. *Komunikasi Efektif*: Buat sesi bincang santai 10 menit sebelum tidur untuk mendengarkan cerita dan perasaan ananda sepanjang hari.
+💡 *REKOMENDASI & SARAN KASIH UNTUK ORANG TUA:*
+${selectedRecs.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}
 
-Terima kasih banyak atas partisipasi aktif, bimbingan, dan kerjasama luar biasa Bapak/Ibu di rumah demi tumbuh kembang terbaik ananda.
+Tiada keberhasilan seorang anak tanpa doa dan ketulusan bimbingan dari kedua orang tua. Semoga ananda ${studentName} senantiasa tumbuh menjadi anak yang sholeh/sholehah, berkarakter mulia, cerdas, dan menjadi kebanggaan keluarga dunia dan akhirat. Aamiin ya Rabbal 'Alamin.
 
 Wassalamu'alaikum Wr. Wb.
 *Wali Kelas ${className}*

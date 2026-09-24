@@ -2,4 +2,8 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/minp1908/public_html/kagum.min1purbalingga.sch.id
-    - /bin/rsync -a --exclude='.git' dist/ $DEPLOYPATH
+    - /bin/cp -rf dist/* $DEPLOYPATH/ 2>/dev/null || :
+    - /bin/cp -f public/api.php $DEPLOYPATH/api.php 2>/dev/null || :
+    - /bin/cp -f public/update.php $DEPLOYPATH/update.php 2>/dev/null || :
+    - /bin/cp -f public/.htaccess $DEPLOYPATH/.htaccess 2>/dev/null || :
+    - /bin/cp -f public/schema.sql $DEPLOYPATH/schema.sql 2>/dev/null || :

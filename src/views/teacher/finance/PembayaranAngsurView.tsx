@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { PaymentCategory, StudentInstallment } from '../../../types';
-import { CreditCard, Plus, Save, Trash2, Edit2, Printer, FileSpreadsheet, FileText, CheckCircle2 } from 'lucide-react';
+import { CreditCard, Plus, Save, Trash2, Edit2, Printer, FileSpreadsheet, FileText, CheckCircle2, Lock } from 'lucide-react';
 import { exportToExcel, exportToPdf } from '../../../utils/exportUtils';
+import { ApiService } from '../../../services/api';
 
 export const PembayaranAngsurView: React.FC = () => {
-  const { students, paymentCategories, setPaymentCategories, paymentInstallments: studentInstallments = [], setPaymentInstallments: setStudentInstallments, currentUser, schoolProfile } = useApp();
+  const { students, paymentCategories, setPaymentCategories, paymentInstallments: studentInstallments = [], setPaymentInstallments: setStudentInstallments, currentUser, schoolProfile, logActivity } = useApp();
   const currentClass = currentUser?.kelas || 'Kelas IA';
   const myStudents = students.filter((s) => s.kelas === currentClass);
 
@@ -13,6 +14,8 @@ export const PembayaranAngsurView: React.FC = () => {
   const [printDate, setPrintDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [message, setMessage] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Category Form State
   const [catForm, setCatForm] = useState({
@@ -30,6 +33,27 @@ export const PembayaranAngsurView: React.FC = () => {
   const getCatTargetAmount = (cat?: PaymentCategory) => (cat ? (cat.totalAmount ?? cat.nominal ?? 0) : 0);
 
   const activeCategory = (paymentCategories || []).find((c) => c.id === selectedCategoryId) || (paymentCategories || [])[0];
+
+  const handleSaveData = async () => {
+    setIsSaving(true);
+    try {
+      localStorage.setItem('kagum_paymentInstallments', JSON.stringify(studentInstallments));
+      localStorage.setItem('kagum_paymentCategories', JSON.stringify(paymentCategories));
+      await ApiService.saveKey('kagum_paymentInstallments', studentInstallments);
+      await ApiService.saveKey('kagum_paymentCategories', paymentCategories);
+      if (logActivity) {
+        logActivity('Simpan Keuangan', `Menyimpan data Pembayaran Angsuran ${activeCategory?.name || ''} (${currentClass})`, 'Keuangan');
+      }
+      setIsEditing(false);
+      setMessage(`Alhamdulillah, data Pembayaran Angsuran ${activeCategory?.name || ''} berhasil disimpan permanen ke database!`);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (err) {
+      setMessage('Data disimpan ke penyimpanan lokal.');
+      setTimeout(() => setMessage(''), 4000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleAddCategory = (e: React.FormEvent) => {
     e.preventDefault();

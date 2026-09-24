@@ -24,8 +24,9 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Akses langsung untuk api.php dan schema.sql
+  # Akses langsung untuk api.php, update.php, dan schema.sql
   RewriteRule ^api\.php$ - [L]
+  RewriteRule ^update\.php$ - [L]
   RewriteRule ^schema\.sql$ - [L]
 
   # Jangan alihkan file .zip ke index.html jika tidak ada di disk (return HTTP 404 murni)
