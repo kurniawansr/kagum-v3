@@ -76,11 +76,14 @@ export const PembayaranAngsurView: React.FC = () => {
     if (!activeCategory) return;
     const targetAmt = getCatTargetAmount(activeCategory);
 
+    const classLabel = currentClass.toUpperCase().startsWith('KELAS')
+      ? currentClass.toUpperCase()
+      : `KELAS ${currentClass.toUpperCase()}`;
+
     const titleLines = [
-      `REKAPITULASI PEMBAYARAN ANGSURAN: ${activeCategory.name.toUpperCase()}`,
-      `KELAS ${currentClass.toUpperCase()}`,
+      `LAPORAN PEMBAYARAN ANGSURAN ${activeCategory.name.toUpperCase()}`,
+      classLabel,
       `SEMESTER ${schoolProfile.semester.toUpperCase()} TAHUN AJARAN ${schoolProfile.tahunAjaran}`,
-      `TARGET TAGIHAN: Rp ${targetAmt.toLocaleString('id-ID')}`,
     ];
 
     const headers = ['No', 'NISN', 'Nama Siswa', 'Total Biaya', 'Total Setor', 'Sisa Kekurangan', 'Status'];
@@ -114,6 +117,11 @@ export const PembayaranAngsurView: React.FC = () => {
       printDate,
       teacherName: currentUser?.name,
       teacherNip: currentUser?.nip,
+      columnStyles: {
+        0: { halign: 'center' },
+        1: { halign: 'center' },
+        2: { halign: 'left' },
+      },
     });
   };
 

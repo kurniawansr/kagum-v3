@@ -117,13 +117,13 @@ export const KebiasaanHebatView: React.FC = () => {
         id: `hab-${selectedStudentId}-${date}`,
         studentId: selectedStudentId,
         date,
-        wakeUpEarly: field === 'wakeUpEarly' ? val : true,
-        prayers: field === 'prayers' ? val : { subuh: true, dhuhur: true, ashar: true, maghrib: true, isya: true },
-        exercise: field === 'exercise' ? val : true,
-        healthyMeals: field === 'healthyMeals' ? val : { pagi: true, siang: true, malam: true },
-        loveLearning: field === 'loveLearning' ? val : true,
-        socializing: field === 'socializing' ? val : true,
-        sleepEarly: field === 'sleepEarly' ? val : true,
+        wakeUpEarly: field === 'wakeUpEarly' ? val : false,
+        prayers: field === 'prayers' ? val : { subuh: false, dhuhur: false, ashar: false, maghrib: false, isya: false },
+        exercise: field === 'exercise' ? val : false,
+        healthyMeals: field === 'healthyMeals' ? val : { pagi: false, siang: false, malam: false },
+        loveLearning: field === 'loveLearning' ? val : false,
+        socializing: field === 'socializing' ? val : false,
+        sleepEarly: field === 'sleepEarly' ? val : false,
       };
       setCharacterRecords([...characterRecords, newRec]);
     }
@@ -587,8 +587,8 @@ _${teacherName}_`;
               const dayNum = idx + 1;
               const dateStr = `2026-${String(selectedMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
               const rec = (studentRecords || []).find((r) => r.date === dateStr);
-              const prayers = rec ? rec.prayers : { subuh: true, dhuhur: true, ashar: true, maghrib: true, isya: true };
-              const meals = rec ? rec.healthyMeals : { pagi: true, siang: true, malam: true };
+              const prayers = rec ? rec.prayers : { subuh: false, dhuhur: false, ashar: false, maghrib: false, isya: false };
+              const meals = rec ? rec.healthyMeals : { pagi: false, siang: false, malam: false };
 
               return (
                 <tr key={dateStr} className="hover:bg-slate-50 transition-colors">
@@ -599,7 +599,7 @@ _${teacherName}_`;
                   <td className="p-2.5 text-center">
                     <input
                       type="checkbox"
-                      checked={rec ? rec.wakeUpEarly : true}
+                      checked={rec ? rec.wakeUpEarly : false}
                       onChange={(e) => handleToggleHabit(dateStr, 'wakeUpEarly', e.target.checked)}
                       className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
                     />
@@ -665,7 +665,7 @@ _${teacherName}_`;
                   <td className="p-2.5 text-center">
                     <input
                       type="checkbox"
-                      checked={rec ? rec.exercise : true}
+                      checked={rec ? rec.exercise : false}
                       onChange={(e) => handleToggleHabit(dateStr, 'exercise', e.target.checked)}
                       className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
                     />
@@ -711,7 +711,7 @@ _${teacherName}_`;
                   <td className="p-2.5 text-center">
                     <input
                       type="checkbox"
-                      checked={rec ? rec.loveLearning : true}
+                      checked={rec ? rec.loveLearning : false}
                       onChange={(e) => handleToggleHabit(dateStr, 'loveLearning', e.target.checked)}
                       className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
                     />
@@ -721,7 +721,7 @@ _${teacherName}_`;
                   <td className="p-2.5 text-center">
                     <input
                       type="checkbox"
-                      checked={rec ? rec.socializing : true}
+                      checked={rec ? rec.socializing : false}
                       onChange={(e) => handleToggleHabit(dateStr, 'socializing', e.target.checked)}
                       className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
                     />
@@ -731,7 +731,7 @@ _${teacherName}_`;
                   <td className="p-2.5 text-center">
                     <input
                       type="checkbox"
-                      checked={rec ? rec.sleepEarly : true}
+                      checked={rec ? rec.sleepEarly : false}
                       onChange={(e) => handleToggleHabit(dateStr, 'sleepEarly', e.target.checked)}
                       className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
                     />

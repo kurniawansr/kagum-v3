@@ -140,7 +140,7 @@ export const AsesmenNilaiView: React.FC = () => {
               g.lmNumber === lm &&
               g.tpNumber === tp
           );
-          initialMap[key] = existing ? existing.score : 85;
+          initialMap[key] = existing ? existing.score : 0;
         }
       }
 
@@ -154,7 +154,7 @@ export const AsesmenNilaiView: React.FC = () => {
             g.type === 'sumatif' &&
             g.ahNumber === ah
         );
-        initialMap[key] = existing ? existing.score : 82;
+        initialMap[key] = existing ? existing.score : 0;
       }
 
       // 3. Populate SAS Score
@@ -165,7 +165,7 @@ export const AsesmenNilaiView: React.FC = () => {
           g.subjectCode === selectedSubjectCode &&
           g.type === 'sas'
       );
-      initialMap[sasKey] = existingSas ? existingSas.score : 80;
+      initialMap[sasKey] = existingSas ? existingSas.score : 0;
     });
 
     setScoreMatrix(initialMap);
@@ -177,7 +177,43 @@ export const AsesmenNilaiView: React.FC = () => {
     setScoreMatrix((prev) => ({ ...prev, [key]: num }));
   };
 
-  // Mass Input Handler
+  // Per-column mass input values
+  const [colMassValues, setColMassValues] = useState<Record<string, number>>({});
+
+  const handleApplyMassColumn = (targetKey: string) => {
+    const defaultVal = targetKey === 'sas' ? 80 : 85;
+    const rawVal = colMassValues[targetKey] ?? defaultVal;
+    const val = Math.min(100, Math.max(0, isNaN(rawVal) ? 0 : rawVal));
+
+    setScoreMatrix((prev) => {
+      const next = { ...prev };
+      myStudents.forEach((st) => {
+        if (targetKey.startsWith('fmt_')) {
+          // e.g. fmt_lm1_tp2 -> fmt_${st.id}_lm1_tp2
+          const cellKey = targetKey.replace('fmt_', `fmt_${st.id}_`);
+          next[cellKey] = val;
+        } else if (targetKey.startsWith('smt_')) {
+          // e.g. smt_ah1 -> smt_${st.id}_ah1
+          const cellKey = targetKey.replace('smt_', `smt_${st.id}_`);
+          next[cellKey] = val;
+        } else if (targetKey === 'sas') {
+          next[`sas_${st.id}`] = val;
+        }
+      });
+      return next;
+    });
+
+    const label = targetKey.startsWith('fmt_')
+      ? targetKey.replace('fmt_lm', 'LM ').replace('_tp', ' TP ')
+      : targetKey.startsWith('smt_')
+      ? targetKey.replace('smt_ah', 'AH ')
+      : 'SAS';
+
+    setMessage(`Nilai masal (${val}) diterapkan untuk seluruh siswa pada kolom ${label.toUpperCase()}`);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
+  // Mass Input Handler for ALL columns
   const handleApplyMassInput = () => {
     const val = Math.min(100, Math.max(0, massScoreValue));
     setScoreMatrix((prev) => {
@@ -209,16 +245,6 @@ export const AsesmenNilaiView: React.FC = () => {
           }
         } else if (massTarget === 'sas') {
           next[`sas_${st.id}`] = val;
-        } else if (massTarget.startsWith('fmt_lm')) {
-          // Specific TP e.g. fmt_lm1_tp2
-          const parts = massTarget.split('_'); // ['fmt', 'lm1', 'tp2']
-          const lm = parseInt(parts[1].replace('lm', ''), 10);
-          const tp = parseInt(parts[2].replace('tp', ''), 10);
-          next[`fmt_${st.id}_lm${lm}_tp${tp}`] = val;
-        } else if (massTarget.startsWith('smt_ah')) {
-          // Specific AH e.g. smt_ah1
-          const ah = parseInt(massTarget.replace('smt_ah', ''), 10);
-          next[`smt_${st.id}_ah${ah}`] = val;
         }
       });
 
@@ -255,7 +281,7 @@ export const AsesmenNilaiView: React.FC = () => {
     for (let lm = 1; lm <= lmCount; lm++) {
       const count = getTpCount(lm);
       for (let tp = 1; tp <= count; tp++) {
-        const score = scoreMatrix[`fmt_${studentId}_lm${lm}_tp${tp}`] ?? 85;
+        const score = scoreMatrix[`fmt_${studentId}_lm${lm}_tp${tp}`] ?? 0;
         totalTpScore += score;
         tpCount++;
       }
@@ -265,16 +291,15 @@ export const AsesmenNilaiView: React.FC = () => {
     // 2. Rata-rata Sumatif (AH)
     let totalAhScore = 0;
     for (let ah = 1; ah <= lmCount; ah++) {
-      const score = scoreMatrix[`smt_${studentId}_ah${ah}`] ?? 82;
+      const score = scoreMatrix[`smt_${studentId}_ah${ah}`] ?? 0;
       totalAhScore += score;
     }
     const avgSumatifAH = lmCount > 0 ? totalAhScore / lmCount : 0;
 
     // 3. SAS Score
-    const sasScore = scoreMatrix[`sas_${studentId}`] ?? 80;
+    const sasScore = scoreMatrix[`sas_${studentId}`] ?? 0;
 
     // 4. Nilai Akhir (NA)
-    // Formula: (Rata Sumatif AH * sumatifWeight%) + (SAS * sasWeight%)
     const sumativeWeightFraction = ((currentSubject as any).sumatifWeight || 60) / 100;
     const sasWeightFraction = ((currentSubject as any).sasWeight || 40) / 100;
 
@@ -305,7 +330,7 @@ export const AsesmenNilaiView: React.FC = () => {
       for (let lm = 1; lm <= lmCount; lm++) {
         const count = getTpCount(lm);
         for (let tp = 1; tp <= count; tp++) {
-          const score = scoreMatrix[`fmt_${st.id}_lm${lm}_tp${tp}`] ?? 85;
+          const score = scoreMatrix[`fmt_${st.id}_lm${lm}_tp${tp}`] ?? 0;
           newGrades.push({
             id: `grd-${st.id}-${selectedSubjectCode}-fmt-lm${lm}-tp${tp}`,
             studentId: st.id,
@@ -320,7 +345,7 @@ export const AsesmenNilaiView: React.FC = () => {
 
       // 2. Save Sumatif AHs
       for (let ah = 1; ah <= lmCount; ah++) {
-        const score = scoreMatrix[`smt_${st.id}_ah${ah}`] ?? 82;
+        const score = scoreMatrix[`smt_${st.id}_ah${ah}`] ?? 0;
         newGrades.push({
           id: `grd-${st.id}-${selectedSubjectCode}-smt-ah${ah}`,
           studentId: st.id,
@@ -332,7 +357,7 @@ export const AsesmenNilaiView: React.FC = () => {
       }
 
       // 3. Save SAS
-      const sasScore = scoreMatrix[`sas_${st.id}`] ?? 80;
+      const sasScore = scoreMatrix[`sas_${st.id}`] ?? 0;
       newGrades.push({
         id: `grd-${st.id}-${selectedSubjectCode}-sas`,
         studentId: st.id,
@@ -417,17 +442,17 @@ export const AsesmenNilaiView: React.FC = () => {
       for (let lm = 1; lm <= lmCount; lm++) {
         const count = getTpCount(lm);
         for (let tp = 1; tp <= count; tp++) {
-          row.push(scoreMatrix[`fmt_${st.id}_lm${lm}_tp${tp}`] ?? 85);
+          row.push(scoreMatrix[`fmt_${st.id}_lm${lm}_tp${tp}`] ?? 0);
         }
       }
 
       // Sumatif AH scores
       for (let ah = 1; ah <= lmCount; ah++) {
-        row.push(scoreMatrix[`smt_${st.id}_ah${ah}`] ?? 82);
+        row.push(scoreMatrix[`smt_${st.id}_ah${ah}`] ?? 0);
       }
 
       // SAS Score
-      row.push(scoreMatrix[`sas_${st.id}`] ?? 80);
+      row.push(scoreMatrix[`sas_${st.id}`] ?? 0);
 
       // NA
       const calc = getStudentCalculations(st.id);
@@ -453,6 +478,11 @@ export const AsesmenNilaiView: React.FC = () => {
       teacherName: currentUser?.name,
       teacherNip: currentUser?.nip,
       orientation: 'landscape', // Landscape format to fit all columns
+      columnStyles: {
+        0: { halign: 'center' },
+        1: { halign: 'center' },
+        2: { halign: 'left' },
+      },
       didParseCell: (data) => {
         // Highlight scores lower than KKTP with Rose Red text & light red background
         if (data.section === 'body') {
@@ -699,71 +729,6 @@ export const AsesmenNilaiView: React.FC = () => {
           </div>
         </div>
 
-        {/* Form Input Nilai Masal Below Table Header */}
-        <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-800 font-extrabold text-xs uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              Form Input Nilai Masal (Batch Fill)
-            </div>
-            <span className="text-[10px] text-slate-500 font-medium">Isi otomatis satu/seluruh kolom di bawah</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Kolom Penilaian</label>
-              <select
-                value={massTarget}
-                onChange={(e) => setMassTarget(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white font-semibold text-xs text-slate-800"
-              >
-                <option value="all">⚡ SEMUA KOLOM (Formatif, AH, SAS)</option>
-                <option value="all_tp">Semua Asesmen Formatif (TP)</option>
-                <option value="all_ah">Semua Asesmen Sumatif (AH)</option>
-                <option value="sas">Sumatif Akhir Semester (SAS)</option>
-                <optgroup label="Spesifik Formatif (LM / TP)">
-                  {Array.from({ length: lmCount }).flatMap((_, i) => {
-                    const lmIndex = i + 1;
-                    const count = getTpCount(lmIndex);
-                    return Array.from({ length: count }).map((__, j) => (
-                      <option key={`fmt_lm${lmIndex}_tp${j + 1}`} value={`fmt_lm${lmIndex}_tp${j + 1}`}>
-                        LM {lmIndex} - TP {j + 1}
-                      </option>
-                    ));
-                  })}
-                </optgroup>
-                <optgroup label="Spesifik Sumatif (AH)">
-                  {Array.from({ length: lmCount }).map((_, i) => (
-                    <option key={`smt_ah${i + 1}`} value={`smt_ah${i + 1}`}>
-                      Asesmen Harian (AH {i + 1})
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Nilai Masal (0 - 100)</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={massScoreValue}
-                onChange={(e) => setMassScoreValue(parseInt(e.target.value, 10) || 0)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl font-black text-center text-xs text-teal-800 bg-white"
-              />
-            </div>
-
-            <button
-              onClick={handleApplyMassInput}
-              className="py-2.5 px-4 bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <Check className="w-4 h-4" />
-              Terapkan Masal
-            </button>
-          </div>
-        </div>
-
         {/* Scrollable Responsive Table */}
         <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-inner">
           <table className="w-full text-center text-xs border-collapse">
@@ -842,6 +807,121 @@ export const AsesmenNilaiView: React.FC = () => {
                     </th>
                   ));
                 })}
+              </tr>
+
+              {/* Row 4 Header: Form Input Nilai Masal langsung di bawah TP, AH, dan SAS */}
+              <tr className="bg-amber-500/10 border-b-2 border-amber-300 text-[10px]">
+                <th colSpan={3} className="p-2 bg-amber-50 border-r border-slate-300 text-amber-950 font-black text-right pr-3 shadow-xs">
+                  <div className="flex items-center justify-end gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Input Masal:</span>
+                  </div>
+                </th>
+
+                {/* Mass input for each TP */}
+                {Array.from({ length: lmCount }).map((_, i) => {
+                  const lmIndex = i + 1;
+                  const count = getTpCount(lmIndex);
+                  return Array.from({ length: count }).map((__, j) => {
+                    const tpIndex = j + 1;
+                    const key = `fmt_lm${lmIndex}_tp${tpIndex}`;
+                    const val = colMassValues[key] ?? 85;
+
+                    return (
+                      <th key={`mass_${key}`} className="p-1 border-r border-slate-300 bg-teal-50/90 text-center">
+                        <div className="flex items-center justify-center gap-0.5 mx-auto">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={val}
+                            onChange={(e) => setColMassValues(prev => ({ ...prev, [key]: parseInt(e.target.value, 10) || 0 }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleApplyMassColumn(key);
+                            }}
+                            title={`Nilai masal LM ${lmIndex} TP ${tpIndex}`}
+                            className="w-10 px-1 py-0.5 text-center font-black text-[11px] rounded bg-white border border-teal-300 text-teal-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                          <button
+                            onClick={() => handleApplyMassColumn(key)}
+                            title={`Terapkan ${val} ke seluruh siswa di TP ${tpIndex}`}
+                            className="p-1 bg-teal-600 hover:bg-teal-700 text-white rounded cursor-pointer transition-colors shadow-2xs"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </th>
+                    );
+                  });
+                })}
+
+                {/* Mass input for each AH */}
+                {Array.from({ length: lmCount }).map((_, i) => {
+                  const ahIndex = i + 1;
+                  const key = `smt_ah${ahIndex}`;
+                  const val = colMassValues[key] ?? 85;
+
+                  return (
+                    <th key={`mass_${key}`} className="p-1 border-r border-slate-300 bg-indigo-50/90 text-center">
+                      <div className="flex items-center justify-center gap-0.5 mx-auto">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={val}
+                          onChange={(e) => setColMassValues(prev => ({ ...prev, [key]: parseInt(e.target.value, 10) || 0 }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleApplyMassColumn(key);
+                          }}
+                          title={`Nilai masal AH ${ahIndex}`}
+                          className="w-10 px-1 py-0.5 text-center font-black text-[11px] rounded bg-white border border-indigo-300 text-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={() => handleApplyMassColumn(key)}
+                          title={`Terapkan ${val} ke seluruh siswa di AH ${ahIndex}`}
+                          className="p-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </th>
+                  );
+                })}
+
+                {/* Mass input for SAS */}
+                {(() => {
+                  const key = 'sas';
+                  const val = colMassValues[key] ?? 80;
+
+                  return (
+                    <th className="p-1 border-r border-slate-300 bg-amber-50/90 text-center">
+                      <div className="flex items-center justify-center gap-0.5 mx-auto">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={val}
+                          onChange={(e) => setColMassValues(prev => ({ ...prev, [key]: parseInt(e.target.value, 10) || 0 }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleApplyMassColumn(key);
+                          }}
+                          title="Nilai masal SAS"
+                          className="w-10 px-1 py-0.5 text-center font-black text-[11px] rounded bg-white border border-amber-300 text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                        <button
+                          onClick={() => handleApplyMassColumn(key)}
+                          title={`Terapkan ${val} ke seluruh siswa di SAS`}
+                          className="p-1 bg-amber-600 hover:bg-amber-700 text-white rounded cursor-pointer transition-colors shadow-2xs"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </th>
+                  );
+                })()}
+
+                {/* NA & Action column empty header cells */}
+                <th colSpan={2} className="p-1 bg-slate-100 border-slate-300"></th>
               </tr>
             </thead>
 

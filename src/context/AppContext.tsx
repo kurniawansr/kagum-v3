@@ -19,6 +19,8 @@ import {
   DonationCategory,
   DonationPayment,
   AssessmentAnalysisRecord,
+  SystemNotification,
+  UserActivityLog,
   Role,
 } from '../types';
 import {
@@ -30,6 +32,8 @@ import {
   initialCalendarEvents,
   initialTimeAllocations,
   initialAssessmentAnalyses,
+  initialNotifications,
+  initialActivityLogs,
 } from '../data/initialData';
 import { ApiService } from '../services/api';
 
@@ -80,6 +84,20 @@ interface AppContextType {
   setDonationPayments: React.Dispatch<React.SetStateAction<DonationPayment[]>>;
   assessmentAnalyses: AssessmentAnalysisRecord[];
   setAssessmentAnalyses: React.Dispatch<React.SetStateAction<AssessmentAnalysisRecord[]>>;
+
+  systemNotifications: SystemNotification[];
+  setSystemNotifications: React.Dispatch<React.SetStateAction<SystemNotification[]>>;
+  addNotification: (notif: Omit<SystemNotification, 'id' | 'timestamp' | 'isRead'>) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
+  deleteNotification: (id: string) => void;
+  clearNotifications: () => void;
+
+  userActivityLogs: UserActivityLog[];
+  setUserActivityLogs: React.Dispatch<React.SetStateAction<UserActivityLog[]>>;
+  logActivity: (action: string, details: string, module: string, status?: 'Sukses' | 'Gagal' | 'Peringatan') => void;
+  clearActivityLogs: () => void;
+
   logout: () => void;
   resetAllData: () => void;
 }
@@ -102,7 +120,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 
   const [activeTab, setActiveTab] = useState<string>(() =>
-    loadStorage<string>('kagum_activeTab', currentUser?.role === 'admin' ? 'data-madrasah' : 'teacher-dashboard')
+    loadStorage<string>('kagum_activeTab', currentUser?.role === 'admin' ? 'admin-dashboard' : 'teacher-dashboard')
   );
 
   const [schoolProfile, setSchoolProfile] = useState<SchoolProfile>(() =>
@@ -191,7 +209,70 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadStorage<AssessmentAnalysisRecord[]>('kagum_assessmentAnalyses', initialAssessmentAnalyses as AssessmentAnalysisRecord[])
   );
 
+  const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>(() =>
+    loadStorage<SystemNotification[]>('kagum_notifications', initialNotifications)
+  );
+
+  const [userActivityLogs, setUserActivityLogs] = useState<UserActivityLog[]>(() =>
+    loadStorage<UserActivityLog[]>('kagum_activityLogs', initialActivityLogs)
+  );
+
   const isDbLoadedRef = useRef(false);
+
+  // Helper to add notification
+  const addNotification = (notif: Omit<SystemNotification, 'id' | 'timestamp' | 'isRead'>) => {
+    const now = new Date();
+    const formatted = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newNotif: SystemNotification = {
+      ...notif,
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: formatted,
+      isRead: false,
+    };
+    setSystemNotifications((prev) => [newNotif, ...prev]);
+  };
+
+  const markNotificationAsRead = (id: string) => {
+    setSystemNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setSystemNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const deleteNotification = (id: string) => {
+    setSystemNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const clearNotifications = () => {
+    setSystemNotifications([]);
+  };
+
+  // Helper to log user activity
+  const logActivity = (action: string, details: string, moduleName: string, status: 'Sukses' | 'Gagal' | 'Peringatan' = 'Sukses') => {
+    const now = new Date();
+    const formatted = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const newLog: UserActivityLog = {
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: formatted,
+      userId: currentUser?.id || 'guest',
+      userName: currentUser?.name || 'Pengguna Publik',
+      userRole: currentUser?.role || 'guru',
+      userClass: currentUser?.kelas || '-',
+      action,
+      details,
+      module: moduleName,
+      status,
+      ipAddress: '127.0.0.1',
+    };
+    setUserActivityLogs((prev) => [newLog, ...prev.slice(0, 499)]); // Keep last 500 logs
+  };
+
+  const clearActivityLogs = () => {
+    setUserActivityLogs([]);
+  };
 
   // Sync with MySQL backend on initial mount
   useEffect(() => {
@@ -221,6 +302,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (data.kagum_donationCategories && Array.isArray(data.kagum_donationCategories)) setDonationCategories(data.kagum_donationCategories);
           if (data.kagum_donationPayments && Array.isArray(data.kagum_donationPayments)) setDonationPayments(data.kagum_donationPayments);
           if (data.kagum_assessmentAnalyses && Array.isArray(data.kagum_assessmentAnalyses)) setAssessmentAnalyses(data.kagum_assessmentAnalyses);
+          if (data.kagum_notifications && Array.isArray(data.kagum_notifications)) setSystemNotifications(data.kagum_notifications);
+          if (data.kagum_activityLogs && Array.isArray(data.kagum_activityLogs)) setUserActivityLogs(data.kagum_activityLogs);
         }
         isDbLoadedRef.current = true;
       })
@@ -261,10 +344,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => { syncHelper('kagum_donationCategories', donationCategories); }, [donationCategories]);
   useEffect(() => { syncHelper('kagum_donationPayments', donationPayments); }, [donationPayments]);
   useEffect(() => { syncHelper('kagum_assessmentAnalyses', assessmentAnalyses); }, [assessmentAnalyses]);
+  useEffect(() => { syncHelper('kagum_notifications', systemNotifications); }, [systemNotifications]);
+  useEffect(() => { syncHelper('kagum_activityLogs', userActivityLogs); }, [userActivityLogs]);
 
   const activeRole: Role = currentUser?.role || 'guru';
 
   const logout = () => {
+    if (currentUser) {
+      logActivity('Logout', `User ${currentUser.name} keluar dari sistem`, 'Auth', 'Sukses');
+    }
     setCurrentUser(null);
   };
 
@@ -290,6 +378,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDonationCategories([]);
     setDonationPayments([]);
     setAssessmentAnalyses(initialAssessmentAnalyses as AssessmentAnalysisRecord[]);
+    setSystemNotifications(initialNotifications);
+    setUserActivityLogs(initialActivityLogs);
     setCurrentUser(initialUsers[1]);
     setActiveTab('guru-dashboard');
   };
@@ -343,6 +433,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setDonationPayments,
         assessmentAnalyses,
         setAssessmentAnalyses,
+        systemNotifications,
+        setSystemNotifications,
+        addNotification,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        deleteNotification,
+        clearNotifications,
+        userActivityLogs,
+        setUserActivityLogs,
+        logActivity,
+        clearActivityLogs,
         logout,
         resetAllData,
       }}

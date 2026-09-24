@@ -1,10 +1,66 @@
 import React, { useState } from 'react';
-import { RefreshCw, Sparkles, CheckCircle2, ShieldCheck, ArrowUpCircle, Terminal, Layers, Info } from 'lucide-react';
+import { RefreshCw, Sparkles, CheckCircle2, ShieldCheck, ArrowUpCircle, Terminal, Layers, Info, Download, Package } from 'lucide-react';
 
 export const UpdateAplikasiView: React.FC = () => {
   const [checking, setChecking] = useState(false);
   const [syncingDb, setSyncingDb] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const handleDownloadZip = async () => {
+    try {
+      setDownloadingZip(true);
+      setStatusMessage('Mengunduh paket cpanel-siap-upload.zip...');
+
+      // Attempt to fetch file directly as blob to verify content size & type
+      let response = await fetch('/cpanel-siap-upload.zip?t=' + Date.now(), {
+        headers: {
+          'Accept': 'application/zip, application/octet-stream',
+        },
+      });
+
+      // Try fallback route if direct path returned non-ok or non-zip
+      if (!response.ok) {
+        response = await fetch('/api/download-zip?t=' + Date.now());
+      }
+
+      if (!response.ok) {
+        throw new Error(`Gagal mengunduh (HTTP ${response.status})`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      const blob = await response.blob();
+
+      // Check if response is valid ZIP (size > 100 KB and not HTML fallback)
+      if (blob.size < 100000 || contentType.includes('text/html')) {
+        setStatusMessage(
+          'Perhatian: File cpanel-siap-upload.zip belum diunggah ke server cPanel ini. Silakan unduh paket ZIP (800+ KB) melalui AI Studio (aplikasi utama), lalu upload ke public_html cPanel.'
+        );
+        return;
+      }
+
+      // Trigger browser download for the Blob
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = 'cpanel-siap-upload.zip';
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(link);
+      }, 1000);
+
+      setStatusMessage(`File cpanel-siap-upload.zip resmi (${(blob.size / 1024).toFixed(0)} KB) berhasil diunduh!`);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      setStatusMessage('Gagal mengunduh ZIP: ' + (err.message || 'Koneksi terputus.'));
+    } finally {
+      setTimeout(() => setDownloadingZip(false), 1500);
+    }
+  };
 
   const handleCheckUpdate = () => {
     setChecking(true);
@@ -50,7 +106,7 @@ export const UpdateAplikasiView: React.FC = () => {
         )}
 
         {/* Current Version Card */}
-        <div className="p-6 bg-slate-900 text-white rounded-2xl border border-slate-800 space-y-6">
+        <div className="p-6 bg-slate-900 text-white rounded-2xl border border-slate-800 space-y-6 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -101,6 +157,28 @@ export const UpdateAplikasiView: React.FC = () => {
           </div>
         </div>
 
+        {/* Direct Download Card */}
+        <div className="p-5 bg-gradient-to-r from-emerald-900 to-teal-950 text-white rounded-2xl border border-emerald-800/80 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-black text-sm text-emerald-300">
+              <Package className="w-5 h-5 text-emerald-400" />
+              Paket Rilis cPanel Siap Upload (.ZIP Bersih)
+            </div>
+            <p className="text-xs text-slate-300 max-w-xl">
+              Unduh paket rilis ini jika ingin mengupdate cPanel. Di dalamnya hanya terdapat file hasil compile (<code className="bg-emerald-950 text-emerald-300 px-1 rounded font-mono">index.html</code>, <code className="bg-emerald-950 text-emerald-300 px-1 rounded font-mono">assets/</code>, <code className="bg-emerald-950 text-emerald-300 px-1 rounded font-mono">api.php</code>, dan <code className="bg-emerald-950 text-emerald-300 px-1 rounded font-mono">.htaccess</code>).
+              <strong>TIDAK PERLU</strong> mendownload seluruh source code project dari tombol ekspor atas agar file tidak bertumpuk!
+            </p>
+          </div>
+          <button
+            onClick={handleDownloadZip}
+            disabled={downloadingZip}
+            className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
+          >
+            <Download className={`w-4 h-4 ${downloadingZip ? 'animate-bounce' : ''}`} />
+            {downloadingZip ? 'Mengunduh ZIP...' : 'Download cPanel ZIP'}
+          </button>
+        </div>
+
         {/* Changelog / Release Notes */}
         <div className="mt-8 space-y-4">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -116,10 +194,10 @@ export const UpdateAplikasiView: React.FC = () => {
                 <span className="text-[10px] text-slate-400 font-medium">Juli 2026</span>
               </div>
               <ul className="list-disc list-inside text-xs text-slate-600 space-y-1 pl-1">
-                <li>Form Pengampuan Kelas guru diubah menjadi isian bebas (text input).</li>
-                <li>Penambahan biodata lengkap guru: Jenis Kelamin, Tempat Lahir, dan Tanggal Lahir.</li>
-                <li>Dukungan login guru menggunakan <strong>NIP/NIK</strong> atau Email.</li>
-                <li>Pembaruan menu Administrator: Fasilitas Backup/Restore data JSON, Update Aplikasi, dan Panduan Deploy MySQL.</li>
+                <li>Inisialisasi status absensi siswa default menjadi inactive (belum hadir / belum ditentukan).</li>
+                <li>Menu Dashboard Admin baru: Grafik Pie rekap absensi kelas hari ini (sudah vs belum) + daftar nama kelas.</li>
+                <li>Agenda Kalender Pendidikan bulan ini visual interaktif lengkap dengan penanda event.</li>
+                <li>Pemberian panduan update cPanel langsung melalui percakapan tanpa instalasi local.</li>
               </ul>
             </div>
 

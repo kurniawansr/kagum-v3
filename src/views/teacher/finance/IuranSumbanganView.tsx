@@ -161,15 +161,16 @@ export const IuranSumbanganView: React.FC = () => {
       `TAHUN AJARAN ${schoolProfile.tahunAjaran}`,
     ];
 
-    const headers = ['No', 'Nama Siswa', 'Tanggal Setor', 'Nominal', 'Status'];
+    const headers = ['No', 'NISN', 'Nama Siswa', 'Tanggal Setor', 'Nominal', 'Status'];
     const rows = myStudents.map((st, idx) => {
       const rec = getStudentRecord(st.id);
       const amt = rec ? rec.amount : 0;
-      const dateStr = rec ? rec.date.split('-').reverse().join('/') : '-';
+      const dateStr = rec && rec.date ? rec.date.split('-').reverse().join('/') : '-';
       const statusStr = amt > 0 ? 'Terbayar' : 'Belum';
 
       return [
         idx + 1,
+        st.nisn,
         st.name,
         dateStr,
         `Rp ${amt.toLocaleString('id-ID')}`,
@@ -186,6 +187,11 @@ export const IuranSumbanganView: React.FC = () => {
       printDate,
       teacherName: currentUser?.name,
       teacherNip: currentUser?.nip,
+      columnStyles: {
+        0: { halign: 'center' },
+        1: { halign: 'center' },
+        2: { halign: 'left' },
+      },
     });
   };
 
@@ -198,14 +204,14 @@ export const IuranSumbanganView: React.FC = () => {
       `TAHUN AJARAN ${schoolProfile.tahunAjaran}`,
     ];
 
-    const headers = ['No', 'Nama Siswa', 'Tanggal Setor', 'Nominal (Rp)', 'Status'];
+    const headers = ['No', 'NISN', 'Nama Siswa', 'Tanggal Setor', 'Nominal (Rp)', 'Status'];
     const rows = myStudents.map((st, idx) => {
       const rec = getStudentRecord(st.id);
       const amt = rec ? rec.amount : 0;
-      const dateStr = rec ? rec.date : '-';
+      const dateStr = rec && rec.date ? rec.date : '-';
       const statusStr = amt > 0 ? 'Terbayar' : 'Belum';
 
-      return [idx + 1, st.name, dateStr, amt, statusStr];
+      return [idx + 1, st.nisn, st.name, dateStr, amt, statusStr];
     });
 
     exportToExcel(
@@ -415,7 +421,7 @@ export const IuranSumbanganView: React.FC = () => {
               {myStudents.map((st, idx) => {
                 const rec = getStudentRecord(st.id);
                 const currentAmt = rec ? rec.amount : (activeItem.nature === 'ditentukan' ? activeItem.defaultNominal : 0);
-                const currentDate = rec ? rec.date : new Date().toISOString().split('T')[0];
+                const currentDate = rec ? rec.date : '';
 
                 return (
                   <tr key={st.id} className="hover:bg-slate-50 transition-colors">
@@ -435,7 +441,11 @@ export const IuranSumbanganView: React.FC = () => {
                         step={1000}
                         value={currentAmt}
                         onChange={(e) =>
-                          handleStudentDepositChange(st.id, parseInt(e.target.value, 10) || 0, currentDate)
+                          handleStudentDepositChange(
+                            st.id,
+                            parseInt(e.target.value, 10) || 0,
+                            currentDate || new Date().toISOString().split('T')[0]
+                          )
                         }
                         className="w-32 px-3 py-1 border border-slate-200 rounded-lg text-center font-extrabold text-teal-800 bg-white"
                       />

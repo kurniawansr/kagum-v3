@@ -3,10 +3,11 @@
   AddType application/javascript .js .mjs
   AddType text/css .css
   AddType image/svg+xml .svg
+  AddType application/zip .zip
 </IfModule>
 
 <IfModule mod_headers.c>
-  <FilesMatch "\.(js|mjs|css|svg|json|png|jpg|jpeg|ico|woff|woff2)$">
+  <FilesMatch "\.(js|mjs|css|svg|json|png|jpg|jpeg|ico|woff|woff2|zip)$">
     Header set Access-Control-Allow-Origin "*"
   </FilesMatch>
 </IfModule>
@@ -26,6 +27,10 @@
   # Akses langsung untuk api.php dan schema.sql
   RewriteRule ^api\.php$ - [L]
   RewriteRule ^schema\.sql$ - [L]
+
+  # Jangan alihkan file .zip ke index.html jika tidak ada di disk (return HTTP 404 murni)
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule \.zip$ - [R=404,L]
 
   # Alihkan semua URL route Single Page Application ke index.html
   RewriteRule ^ index.html [L]

@@ -8,17 +8,21 @@ export default defineConfig(() => {
     base: './',
     plugins: [react(), tailwindcss()],
     build: {
-      target: 'es2015',
+      target: 'esnext',
       modulePreload: false,
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 2000,
+      reportCompressedSize: false,
+      sourcemap: false,
       rollupOptions: {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
-              if (id.includes('xlsx')) return 'vendor-xlsx';
-              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('dompurify')) return 'vendor-pdf';
-              if (id.includes('lucide-react')) return 'vendor-icons';
-              if (id.includes('motion')) return 'vendor-motion';
+              if (id.includes('xlsx')) return 'v-xlsx';
+              if (id.includes('jspdf')) return 'v-jspdf';
+              if (id.includes('html2canvas')) return 'v-h2c';
+              if (id.includes('lucide-react')) return 'v-icons';
+              if (id.includes('motion')) return 'v-motion';
+              if (id.includes('recharts')) return 'v-charts';
             }
           },
         },

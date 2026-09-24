@@ -29,14 +29,14 @@ export const AbsensiSiswaView: React.FC = () => {
   const monthEff = calculateMonthEfficiency(monthYear, selectedMonth, calendarEvents || []);
 
   // Local state for daily input table
-  const [dailyStatusMap, setDailyStatusMap] = useState<Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alfa'>>({});
+  const [dailyStatusMap, setDailyStatusMap] = useState<Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | ''>>({});
 
   // Sync daily status when selectedDate changes
   React.useEffect(() => {
-    const existingMap: Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alfa'> = {};
+    const existingMap: Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | ''> = {};
     myStudents.forEach((st) => {
       const rec = (attendanceRecords || []).find((r) => r.studentId === st.id && r.date === selectedDate);
-      existingMap[st.id] = rec ? rec.status : 'Hadir';
+      existingMap[st.id] = rec ? rec.status : '';
     });
     setDailyStatusMap(existingMap);
   }, [selectedDate, attendanceRecords, students, currentClass]);
@@ -46,7 +46,7 @@ export const AbsensiSiswaView: React.FC = () => {
   };
 
   const handleHadirSemua = () => {
-    const newMap: Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alfa'> = {};
+    const newMap: Record<string, 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | ''> = {};
     myStudents.forEach((st) => {
       newMap[st.id] = 'Hadir';
     });
@@ -590,7 +590,7 @@ export const AbsensiSiswaView: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {myStudents.map((st, idx) => {
-              const currentStatus = dailyStatusMap[st.id] || 'Hadir';
+              const currentStatus = dailyStatusMap[st.id] || '';
 
               return (
                 <tr key={st.id} className="hover:bg-slate-50 transition-colors">
@@ -600,7 +600,13 @@ export const AbsensiSiswaView: React.FC = () => {
                     <span className="font-bold text-slate-800">{st.name}</span>
                   </td>
                   <td className="p-3 text-center">
-                    <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 font-bold text-xs">
+                    <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 font-bold text-xs">
+                      {currentStatus === '' && (
+                        <span className="px-2.5 py-0.5 text-[10px] font-extrabold text-slate-500 bg-slate-200/80 rounded-lg mr-1 border border-slate-300/60 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-ping" />
+                          Belum Hadir / Ditentukan
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleStatusChange(st.id, 'Hadir')}

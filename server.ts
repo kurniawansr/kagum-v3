@@ -1,5 +1,7 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import { execSync } from "child_process";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
@@ -8,6 +10,47 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: "10mb" }));
+
+  // Download Route for cPanel ZIP (Defined before static middleware to ensure full zip download)
+  app.all(["/cpanel-siap-upload.zip", "/api/download-zip"], (req, res) => {
+    const zipPublic = path.join(process.cwd(), "public", "cpanel-siap-upload.zip");
+    const zipDist = path.join(process.cwd(), "dist", "cpanel-siap-upload.zip");
+
+    let targetFile = "";
+    if (fs.existsSync(zipPublic) && fs.statSync(zipPublic).size > 100000) {
+      targetFile = zipPublic;
+    } else if (fs.existsSync(zipDist) && fs.statSync(zipDist).size > 100000) {
+      targetFile = zipDist;
+    }
+
+    // If zip does not exist or is corrupted, generate it on demand
+    if (!targetFile) {
+      try {
+        console.log("Generating ZIP on demand...");
+        execSync("node scripts/make-zip.js", { stdio: "inherit" });
+        if (fs.existsSync(zipPublic) && fs.statSync(zipPublic).size > 100000) targetFile = zipPublic;
+        else if (fs.existsSync(zipDist) && fs.statSync(zipDist).size > 100000) targetFile = zipDist;
+      } catch (err) {
+        console.error("On-demand ZIP generation failed:", err);
+      }
+    }
+
+    if (targetFile && fs.existsSync(targetFile)) {
+      const stat = fs.statSync(targetFile);
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Length", stat.size.toString());
+      res.setHeader("Content-Disposition", 'attachment; filename="cpanel-siap-upload.zip"');
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      return res.sendFile(targetFile);
+    }
+
+    return res.status(404).json({ error: "File cpanel-siap-upload.zip tidak ditemukan." });
+  });
+
+  // Serve static assets from public
+  app.use(express.static(path.join(process.cwd(), "public")));
 
   // Initialize Gemini Client
   const getGeminiClient = () => {

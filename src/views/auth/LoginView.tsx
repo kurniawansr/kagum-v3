@@ -7,7 +7,7 @@ import { KeyRound, Mail, Eye, EyeOff, BookOpen, GraduationCap, Lock, Heart, Load
 import { motion } from 'motion/react';
 
 export const LoginView: React.FC = () => {
-  const { users, setUsers, setCurrentUser, schoolProfile } = useApp();
+  const { users, setUsers, setCurrentUser, schoolProfile, logActivity } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -70,8 +70,10 @@ export const LoginView: React.FC = () => {
       }
 
       if (user) {
+        logActivity('Login Aplikasi', `Berhasil masuk sebagai ${user.name} (${user.role === 'admin' ? 'Administrator' : `Wali Kelas ${user.kelas}`})`, 'Auth', 'Sukses');
         setCurrentUser(user);
       } else {
+        logActivity('Gagal Login', `Mencoba login dengan identitas '${email}'`, 'Auth', 'Gagal');
         setErrorMessage('Kredensial tidak ditemukan. Silakan periksa kembali email/NIP/username dan kata sandi Anda.');
       }
     } catch {

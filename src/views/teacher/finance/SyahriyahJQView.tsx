@@ -72,7 +72,7 @@ export const SyahriyahJQView: React.FC = () => {
           lunasCount++;
           return rec.paymentDate.split('-').reverse().join('/');
         }
-        return '00/00/0000';
+        return '';
       });
 
       return [idx + 1, st.nisn, st.name, ...monthCols, `Rp ${(lunasCount * nominalSetting).toLocaleString('id-ID')}`];
@@ -88,6 +88,11 @@ export const SyahriyahJQView: React.FC = () => {
       teacherName: currentUser?.name,
       teacherNip: currentUser?.nip,
       orientation: 'landscape',
+      columnStyles: {
+        0: { halign: 'center' },
+        1: { halign: 'center' },
+        2: { halign: 'left' },
+      },
     });
   };
 
@@ -109,7 +114,7 @@ export const SyahriyahJQView: React.FC = () => {
           lunasCount++;
           return rec.paymentDate;
         }
-        return '00/00/0000';
+        return '';
       });
 
       return [idx + 1, st.nisn, st.name, ...monthCols, lunasCount * nominalSetting];

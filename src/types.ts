@@ -212,6 +212,32 @@ export interface DonationPayment {
 
 export type QuestionType = 'Pilihan Jamak' | 'Kompleks' | 'Menjodohkan' | 'Isian' | 'Uraian';
 
+export interface SystemNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  type: 'info' | 'warning' | 'success' | 'danger';
+  isRead: boolean;
+  targetRole?: 'admin' | 'guru' | 'all';
+  targetTab?: string;
+  category?: string;
+}
+
+export interface UserActivityLog {
+  id: string;
+  timestamp: string;
+  userId: string;
+  userName: string;
+  userRole: Role;
+  userClass?: string;
+  action: string;
+  details: string;
+  module: string;
+  status: 'Sukses' | 'Gagal' | 'Peringatan';
+  ipAddress?: string;
+}
+
 export interface QuestionItem {
   number: number;
   type: QuestionType;

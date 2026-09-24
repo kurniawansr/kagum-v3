@@ -14,6 +14,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+// Handler khusus download ZIP tanpa memerlukan koneksi database
+if (isset($_GET['action']) && $_GET['action'] === 'download_zip') {
+    $zipPath = __DIR__ . '/cpanel-siap-upload.zip';
+    if (file_exists($zipPath) && filesize($zipPath) > 100000) {
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/zip');
+        header('Content-Length: ' . filesize($zipPath));
+        header('Content-Disposition: attachment; filename="cpanel-siap-upload.zip"');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        readfile($zipPath);
+        exit();
+    } else {
+        http_response_code(404);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'File cpanel-siap-upload.zip tidak ditemukan atau ukurannya tidak valid di server hosting ini. Silakan unduh paket ZIP resmi melalui AI Studio.'
+        ], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+}
+
 // =========================================================================
 // KONFIGURASI DATABASE MYSQL CPANEL MIN 1 PURBALINGGA
 // =========================================================================

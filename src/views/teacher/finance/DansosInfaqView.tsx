@@ -73,7 +73,7 @@ export const DansosInfaqView: React.FC = () => {
       let studentTotal = 0;
       const fridayAmounts = fridayDates.map((d, fIdx) => {
         const rec = (dansosRecords || []).find((r) => r.studentId === st.id && r.date === d);
-        const amt = rec ? rec.amount : 2000;
+        const amt = rec ? rec.amount : 0;
         studentTotal += amt;
         columnTotals[fIdx] += amt;
         return `Rp ${amt.toLocaleString('id-ID')}`;
@@ -121,7 +121,7 @@ export const DansosInfaqView: React.FC = () => {
       let studentTotal = 0;
       const fridayAmounts = fridayDates.map((d) => {
         const rec = (dansosRecords || []).find((r) => r.studentId === st.id && r.date === d);
-        const amt = rec ? rec.amount : 2000;
+        const amt = rec ? rec.amount : 0;
         studentTotal += amt;
         return amt;
       });
@@ -215,52 +215,16 @@ export const DansosInfaqView: React.FC = () => {
           Tabel Infaq Jum'at Bulan {INDONESIAN_MONTH_NAMES[selectedMonth]} {monthYear}
         </h3>
 
-        {/* Bulk Input Form Below Table Header */}
-        <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider">
-              ⚡ Form Input Masal Infaq Jum'at (Setor Otomatis)
-            </span>
-            <span className="text-[10px] text-amber-700 font-medium">Isi nominal infaq sekaligus untuk seluruh siswa</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
-            {fridayDates.map((dStr) => (
-              <div key={dStr} className="p-2 bg-white rounded-xl border border-amber-200">
-                <label className="block text-[10px] font-bold text-amber-900 mb-1">
-                  Jum'at {dStr.split('-')[2]} {INDONESIAN_MONTH_NAMES[selectedMonth]}
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    step={500}
-                    placeholder="2000"
-                    value={massNominals[dStr] || ''}
-                    onChange={(e) => setMassNominals({ ...massNominals, [dStr]: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full px-2 py-1 border border-slate-200 rounded-lg text-center font-bold text-xs text-slate-800 bg-slate-50"
-                  />
-                  <button
-                    onClick={() => handleSetMassNominal(dStr, massNominals[dStr] || 2000)}
-                    className="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white font-extrabold text-xs rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
-                  >
-                    Set
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-              <th className="p-3 w-10 text-center" rowSpan={2}>No</th>
-              <th className="p-3" rowSpan={2}>NISN</th>
-              <th className="p-3" rowSpan={2}>Nama Lengkap Siswa</th>
+              <th className="p-3 w-10 text-center" rowSpan={3}>No</th>
+              <th className="p-3" rowSpan={3}>NISN</th>
+              <th className="p-3" rowSpan={3}>Nama Lengkap Siswa</th>
               <th className="p-2 text-center bg-amber-50 border-b border-slate-200 text-amber-900" colSpan={fridayDates.length}>
                 Tanggal Hari Jum'at
               </th>
-              <th className="p-3 text-right" rowSpan={2}>Total Infaq</th>
+              <th className="p-3 text-right" rowSpan={3}>Total Infaq</th>
             </tr>
             <tr className="bg-amber-50/50 text-amber-950 font-semibold text-[11px]">
               {fridayDates.map((dateStr) => (
@@ -268,6 +232,42 @@ export const DansosInfaqView: React.FC = () => {
                   Tgl {dateStr.split('-')[2]}
                 </th>
               ))}
+            </tr>
+            {/* Input Masal Header Row */}
+            <tr className="bg-amber-100/60 border-b border-slate-300 text-[10px]">
+              {fridayDates.map((dStr) => {
+                const val = massNominals[dStr] ?? '';
+
+                return (
+                  <th key={`mass_${dStr}`} className="p-1 border-r border-slate-300 text-center bg-amber-50">
+                    <div className="flex items-center justify-center gap-1 mx-auto">
+                      <input
+                        type="number"
+                        step={500}
+                        min={0}
+                        placeholder="0"
+                        value={val}
+                        onChange={(e) => {
+                          const num = parseInt(e.target.value, 10);
+                          setMassNominals((prev) => ({ ...prev, [dStr]: isNaN(num) ? 0 : num }));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSetMassNominal(dStr, massNominals[dStr] || 0);
+                        }}
+                        title={`Nominal masal Tgl ${dStr.split('-')[2]}`}
+                        className="w-16 px-1.5 py-1 text-center font-bold text-[11px] rounded bg-white border border-amber-300 text-amber-950 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      />
+                      <button
+                        onClick={() => handleSetMassNominal(dStr, massNominals[dStr] || 0)}
+                        title={`Terapkan nominal ke seluruh siswa Tgl ${dStr.split('-')[2]}`}
+                        className="px-2 py-1 bg-amber-700 hover:bg-amber-800 text-white font-extrabold text-[10px] rounded cursor-pointer transition-colors shadow-2xs shrink-0"
+                      >
+                        Set
+                      </button>
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -282,7 +282,7 @@ export const DansosInfaqView: React.FC = () => {
 
                   {fridayDates.map((dStr) => {
                     const rec = (dansosRecords || []).find((r) => r.studentId === st.id && r.date === dStr);
-                    const amount = rec ? rec.amount : 2000;
+                    const amount = rec ? rec.amount : 0;
                     rowTotal += amount;
 
                     return (
@@ -290,7 +290,9 @@ export const DansosInfaqView: React.FC = () => {
                         <input
                           type="number"
                           step={500}
-                          value={amount}
+                          min={0}
+                          placeholder="0"
+                          value={amount === 0 ? '' : amount}
                           onChange={(e) => handleStudentAmountChange(st.id, dStr, parseInt(e.target.value, 10) || 0)}
                           className="w-20 px-2 py-1 border border-slate-200 rounded-lg text-center font-bold text-slate-800 bg-white"
                         />
@@ -313,7 +315,7 @@ export const DansosInfaqView: React.FC = () => {
               {fridayDates.map((dStr) => {
                 const columnTotal = myStudents.reduce((sum, st) => {
                   const rec = (dansosRecords || []).find((r) => r.studentId === st.id && r.date === dStr);
-                  return sum + (rec ? rec.amount : 2000);
+                  return sum + (rec ? rec.amount : 0);
                 }, 0);
                 return (
                   <td key={dStr} className="p-2 text-center text-xs text-amber-900 border-r border-amber-200">
@@ -325,7 +327,7 @@ export const DansosInfaqView: React.FC = () => {
                 Rp {myStudents.reduce((grandSum, st) => {
                   return grandSum + fridayDates.reduce((fSum, dStr) => {
                     const rec = (dansosRecords || []).find((r) => r.studentId === st.id && r.date === dStr);
-                    return fSum + (rec ? rec.amount : 2000);
+                    return fSum + (rec ? rec.amount : 0);
                   }, 0);
                 }, 0).toLocaleString('id-ID')}
               </td>

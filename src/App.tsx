@@ -5,6 +5,7 @@ import { ApiService } from './services/api';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Admin Views
+import { AdminDashboard } from './views/admin/AdminDashboard';
 import { DataMadrasahView } from './views/admin/DataMadrasahView';
 import { UserManagementView } from './views/admin/UserManagementView';
 import { KalenderPendidikanView } from './views/admin/KalenderPendidikanView';
@@ -14,6 +15,7 @@ import { AdminLaporanKeuanganView } from './views/admin/AdminLaporanKeuanganView
 import { BackupRestoreView } from './views/admin/BackupRestoreView';
 import { UpdateAplikasiView } from './views/admin/UpdateAplikasiView';
 import { DeployMysqlView } from './views/admin/DeployMysqlView';
+import { UserActivityLogView } from './views/admin/UserActivityLogView';
 
 // Teacher Views
 import { TeacherDashboard } from './views/teacher/TeacherDashboard';
@@ -74,6 +76,12 @@ import {
   ShieldCheck,
   Home,
   CheckCircle2,
+  History,
+  AlertTriangle,
+  XCircle,
+  Info,
+  Trash2,
+  Check,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -87,12 +95,14 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   // Admin
+  { id: 'admin-dashboard', label: 'Dashboard Admin', icon: LayoutDashboard, category: 'Administrator', role: 'admin' },
   { id: 'data-madrasah', label: 'Data Profil Madrasah', icon: Building2, category: 'Administrator', role: 'admin' },
   { id: 'user-management', label: 'Kelola Pengguna & Guru', icon: Users, category: 'Administrator', role: 'admin' },
   { id: 'kalender-pendidikan', label: 'Kalender Pendidikan', icon: Calendar, category: 'Administrator', role: 'admin' },
   { id: 'kop-laporan', label: 'Pengaturan Kop Laporan', icon: FileSignature, category: 'Administrator', role: 'admin' },
   { id: 'admin-absensi', label: 'Laporan Rekap Absensi', icon: FileSpreadsheet, category: 'Administrator', role: 'admin' },
   { id: 'admin-keuangan', label: 'Laporan Rekap Keuangan', icon: Wallet, category: 'Administrator', role: 'admin' },
+  { id: 'log-aktivitas', label: 'Log Aktivitas User', icon: History, category: 'Administrator', role: 'admin' },
   { id: 'backup-restore', label: 'Backup & Restore Data', icon: HardDrive, category: 'Administrator', role: 'admin' },
   { id: 'update-aplikasi', label: 'Update Aplikasi', icon: RefreshCw, category: 'Administrator', role: 'admin' },
   { id: 'deploy-mysql', label: 'Panduan Deploy MySQL', icon: Database, category: 'Administrator', role: 'admin' },
@@ -122,13 +132,27 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 const MainLayout: React.FC = () => {
-  const { currentUser, setCurrentUser, schoolProfile, activeTab, setActiveTab, attendanceRecords, students } = useApp();
+  const {
+    currentUser,
+    setCurrentUser,
+    schoolProfile,
+    activeTab,
+    setActiveTab,
+    attendanceRecords,
+    students,
+    systemNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    deleteNotification,
+    clearNotifications,
+  } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<'semua' | 'unread'>('semua');
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
@@ -204,6 +228,8 @@ const MainLayout: React.FC = () => {
 
   const renderAdminContent = () => {
     switch (activeTab) {
+      case 'admin-dashboard':
+        return <AdminDashboard />;
       case 'data-madrasah':
         return <DataMadrasahView />;
       case 'user-management':
@@ -216,6 +242,8 @@ const MainLayout: React.FC = () => {
         return <AdminLaporanAbsensiView />;
       case 'admin-keuangan':
         return <AdminLaporanKeuanganView />;
+      case 'log-aktivitas':
+        return <UserActivityLogView />;
       case 'backup-restore':
         return <BackupRestoreView />;
       case 'update-aplikasi':
@@ -223,7 +251,7 @@ const MainLayout: React.FC = () => {
       case 'deploy-mysql':
         return <DeployMysqlView />;
       default:
-        return <DataMadrasahView />;
+        return <AdminDashboard />;
     }
   };
 
@@ -387,44 +415,165 @@ const MainLayout: React.FC = () => {
               <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/60 transition-colors relative cursor-pointer"
-                title="Pemberitahuan"
+                title="Pemberitahuan System"
               >
                 <Bell className="w-4 h-4" />
-                {!isAttendanceDone && userRole === 'guru' && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
+                {systemNotifications.filter((n) => !n.isRead && (n.targetRole === 'all' || n.targetRole === userRole)).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-extrabold rounded-full w-4 h-4 flex items-center justify-center border-2 border-white animate-pulse">
+                    {systemNotifications.filter((n) => !n.isRead && (n.targetRole === 'all' || n.targetRole === userRole)).length}
+                  </span>
                 )}
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <span className="font-extrabold text-xs text-slate-800">Notifikasi System</span>
-                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">Baru</span>
-                  </div>
-                  <div className="space-y-2 text-xs">
-                    {!isAttendanceDone && userRole === 'guru' ? (
-                      <div
-                        onClick={() => {
-                          setActiveTab('absensi-siswa');
-                          setNotificationsOpen(false);
-                        }}
-                        className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl cursor-pointer hover:bg-amber-100/80 transition-colors"
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 z-50 space-y-3 font-sans">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs text-slate-900">Notifikasi System</span>
+                      <span className="text-[10px] text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                        {systemNotifications.filter((n) => !n.isRead && (n.targetRole === 'all' || n.targetRole === userRole)).length} Baru
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={markAllNotificationsAsRead}
+                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                        title="Tandai semua dibaca"
                       >
-                        <p className="font-bold text-amber-900 flex items-center gap-1.5">
-                          <Bell className="w-3.5 h-3.5 text-amber-600" /> Absensi Hari Ini Chưa Diisi
-                        </p>
-                        <p className="text-[11px] text-amber-800 mt-1">
-                          Klik untuk langsung mengisi presensi siswa kelas {teacherClass}.
+                        Dibaca Semua
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        onClick={clearNotifications}
+                        className="text-[10px] font-bold text-rose-500 hover:text-rose-600 hover:underline cursor-pointer"
+                        title="Bersihkan notifikasi"
+                      >
+                        Hapus Semua
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div className="flex gap-1 p-1 bg-slate-100 rounded-xl text-[11px] font-bold">
+                    <button
+                      onClick={() => setNotifFilter('semua')}
+                      className={`flex-1 py-1 rounded-lg transition-all cursor-pointer ${
+                        notifFilter === 'semua'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Semua ({systemNotifications.filter((n) => n.targetRole === 'all' || n.targetRole === userRole).length})
+                    </button>
+                    <button
+                      onClick={() => setNotifFilter('unread')}
+                      className={`flex-1 py-1 rounded-lg transition-all cursor-pointer ${
+                        notifFilter === 'unread'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Belum Dibaca ({systemNotifications.filter((n) => !n.isRead && (n.targetRole === 'all' || n.targetRole === userRole)).length})
+                    </button>
+                  </div>
+
+                  {/* Dynamic Alert Condition for Absensi */}
+                  {!isAttendanceDone && userRole === 'guru' && (
+                    <div
+                      onClick={() => {
+                        setActiveTab('absensi-siswa');
+                        setNotificationsOpen(false);
+                      }}
+                      className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl cursor-pointer hover:bg-amber-100 transition-colors flex items-start gap-2.5"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="flex-1 text-xs">
+                        <p className="font-extrabold text-amber-950">Presensi Hari Ini Belum Diisi</p>
+                        <p className="text-[11px] text-amber-800 mt-0.5">
+                          Klik untuk membuka lembar absensi siswa kelas {teacherClass}.
                         </p>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Notifications List */}
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {systemNotifications
+                      .filter((n) => n.targetRole === 'all' || n.targetRole === userRole)
+                      .filter((n) => (notifFilter === 'unread' ? !n.isRead : true)).length > 0 ? (
+                      systemNotifications
+                        .filter((n) => n.targetRole === 'all' || n.targetRole === userRole)
+                        .filter((n) => (notifFilter === 'unread' ? !n.isRead : true))
+                        .map((notif) => {
+                          const isWarning = notif.type === 'warning';
+                          const isDanger = notif.type === 'danger';
+                          const isSuccess = notif.type === 'success';
+
+                          return (
+                            <div
+                              key={notif.id}
+                              className={`p-3 rounded-xl border transition-all text-xs relative group ${
+                                !notif.isRead
+                                  ? 'bg-indigo-50/50 border-indigo-200'
+                                  : 'bg-white border-slate-100 hover:border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2">
+                                  {isWarning && <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />}
+                                  {isDanger && <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
+                                  {isSuccess && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
+                                  {!isWarning && !isDanger && !isSuccess && <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />}
+
+                                  <div>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-extrabold text-slate-900">{notif.title}</p>
+                                      {!notif.isRead && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block" />
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">{notif.message}</p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <span className="text-[10px] font-bold text-slate-400">{notif.timestamp}</span>
+                                      <span className="text-[10px] font-bold px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
+                                        {notif.category}
+                                      </span>
+                                      {notif.targetTab && (
+                                        <button
+                                          onClick={() => {
+                                            markNotificationAsRead(notif.id);
+                                            setActiveTab(notif.targetTab!);
+                                            setNotificationsOpen(false);
+                                          }}
+                                          className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer ml-auto"
+                                        >
+                                          Buka Menu &rarr;
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteNotification(notif.id);
+                                  }}
+                                  className="text-slate-300 hover:text-rose-500 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                  title="Hapus"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
                     ) : (
-                      <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-xl">
-                        <p className="font-bold text-emerald-900 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Presensi Kelas Terisi
-                        </p>
-                        <p className="text-[11px] text-emerald-800 mt-1">
-                          Presensi siswa hari ini ({todayStr}) telah lengkap tercatat.
-                        </p>
+                      <div className="py-8 text-center text-slate-400">
+                        <Bell className="w-8 h-8 mx-auto text-slate-300 mb-1" />
+                        <p className="text-xs font-bold text-slate-600">Tidak ada notifikasi</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Semua pesan pemberitahuan telah dibaca.</p>
                       </div>
                     )}
                   </div>
@@ -598,7 +747,7 @@ const MainLayout: React.FC = () => {
           {/* Breadcrumb Header */}
           <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 print:hidden">
             <div className="flex items-center gap-2 text-xs text-slate-500">
-              <button onClick={() => setActiveTab(userRole === 'admin' ? 'data-madrasah' : 'teacher-dashboard')} className="hover:text-emerald-700 transition-colors flex items-center gap-1 font-bold">
+              <button onClick={() => setActiveTab(userRole === 'admin' ? 'admin-dashboard' : 'teacher-dashboard')} className="hover:text-emerald-700 transition-colors flex items-center gap-1 font-bold">
                 <Home className="w-3.5 h-3.5" /> Beranda
               </button>
               <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
