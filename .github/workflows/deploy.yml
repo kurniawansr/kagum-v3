@@ -26,12 +26,23 @@ jobs:
       - name: 4. Compile React & Siapkan Build cPanel
         run: npm run build
 
-      - name: 5. Deploy Otomatis ke cPanel via FTP
+      - name: 5. Simpan Paket Rilis ZIP sebagai Artifact GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpanel-siap-upload-v3.6
+          path: public/cpanel-siap-upload.zip
+          retention-days: 14
+
+      - name: 6. Deploy Otomatis ke cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER || secrets.CPANEL_FTP_HOST }}
           username: ${{ secrets.FTP_USERNAME || secrets.CPANEL_FTP_USER }}
           password: ${{ secrets.FTP_PASSWORD || secrets.CPANEL_FTP_PASSWORD }}
+          protocol: ftp
+          security: loose
+          port: 21
           local-dir: .cpanel-build/
           server-dir: public_html/kagum.min1purbalingga.sch.id/
           dangerous-clean-slate: false
+          log-level: verbose
