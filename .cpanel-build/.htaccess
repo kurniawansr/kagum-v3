@@ -1,0 +1,38 @@
+# Force MIME Types & CORS for JavaScript (ES Modules) and CSS on Apache/LiteSpeed
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType text/css .css
+  AddType image/svg+xml .svg
+  AddType application/zip .zip
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs|css|svg|json|png|jpg|jpeg|ico|woff|woff2|zip)$">
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Jika folder diakses tanpa akhiran slash '/', redirect tambahkan '/'
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^(.*[^/])$ $1/ [L,R=301]
+
+  # Jangan rewrite jika file atau folder fisik ada (seperti assets, api.php, favicon, logo, dll)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Akses langsung untuk api.php, update.php, dan schema.sql
+  RewriteRule ^api\.php$ - [L]
+  RewriteRule ^update\.php$ - [L]
+  RewriteRule ^schema\.sql$ - [L]
+
+  # Jangan alihkan file .zip ke index.html jika tidak ada di disk (return HTTP 404 murni)
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule \.zip$ - [R=404,L]
+
+  # Alihkan semua URL route Single Page Application ke index.html
+  RewriteRule ^ index.html [L]
+</IfModule>

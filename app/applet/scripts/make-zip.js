@@ -44,7 +44,6 @@ function addFilesRecursively(dirPath, zipFolder) {
   const items = fs.readdirSync(dirPath);
   for (const item of items) {
     if (item.endsWith('.zip')) continue;
-
     const fullPath = path.join(dirPath, item);
     const stat = fs.statSync(fullPath);
     if (stat.isDirectory()) {
@@ -68,9 +67,8 @@ zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptio
     fs.writeFileSync(distZipPath, buffer);
     console.log('Successfully copied zip to', distZipPath);
   }
-
-  // Pertahankan .cpanel-build untuk deploy
-  console.log("Preserving .cpanel-build for deployment");
+  // Pertahankan folder .cpanel-build agar GitHub Action (FTP-Deploy-Action) dapat mengunggah isinya ke cPanel
+  console.log('Build directory .cpanel-build preserved for automated deployment.');
 }).catch((err) => {
   console.error('Failed to create ZIP:', err);
   process.exit(1);
