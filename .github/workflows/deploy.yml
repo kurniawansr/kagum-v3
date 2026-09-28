@@ -1,4 +1,4 @@
-name: Deploy KAGUM to cPanel
+name: Deploy KAGUM to cPanel Otomatis
 
 on:
   push:
@@ -9,8 +9,9 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy ke cPanel Hosting
+    name: Build & Deploy ke Hosting cPanel
     runs-on: ubuntu-latest
+
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
@@ -19,6 +20,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: "npm"
 
       - name: 3. Install Dependencies
         run: npm install
@@ -26,23 +28,38 @@ jobs:
       - name: 4. Compile React & Siapkan Build cPanel
         run: npm run build
 
-      - name: 5. Simpan Paket Rilis ZIP sebagai Artifact GitHub
+      - name: 5. Validasi Direktori Rilis
+        run: |
+          echo "=== Memeriksa folder rilis .cpanel-build ==="
+          if [ ! -d ".cpanel-build" ]; then
+            echo "Folder .cpanel-build belum ada, menyiapkan dari dist/..."
+            mkdir -p .cpanel-build
+            cp -r dist/* .cpanel-build/
+            [ -f public/api.php ] && cp public/api.php .cpanel-build/
+            [ -f public/update.php ] && cp public/update.php .cpanel-build/
+            [ -f public/.htaccess ] && cp public/.htaccess .cpanel-build/
+            [ -f public/schema.sql ] && cp public/schema.sql .cpanel-build/
+          fi
+          echo "Daftar file yang siap dikirim ke hosting:"
+          ls -la .cpanel-build/
+
+      - name: 6. Simpan Paket Rilis ZIP sebagai Artifact GitHub
         uses: actions/upload-artifact@v4
         with:
           name: cpanel-siap-upload-v3.6
           path: public/cpanel-siap-upload.zip
           retention-days: 14
 
-      - name: 6. Deploy Otomatis ke cPanel via FTP
+      - name: 7. Deploy Otomatis ke cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER || secrets.CPANEL_FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME || secrets.CPANEL_FTP_USER }}
-          password: ${{ secrets.FTP_PASSWORD || secrets.CPANEL_FTP_PASSWORD }}
+          server: ${{ secrets.FTP_SERVER || secrets.CPANEL_FTP_HOST || secrets.FTP_HOST || secrets.CPANEL_SERVER || secrets.HOST }}
+          username: ${{ secrets.FTP_USERNAME || secrets.CPANEL_FTP_USER || secrets.FTP_USER || secrets.CPANEL_USER || secrets.USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD || secrets.CPANEL_FTP_PASSWORD || secrets.FTP_PASS || secrets.CPANEL_PASSWORD || secrets.PASSWORD }}
           protocol: ftp
           security: loose
-          port: 21
+          port: ${{ secrets.FTP_PORT || 21 }}
           local-dir: .cpanel-build/
-          server-dir: public_html/kagum.min1purbalingga.sch.id/
+          server-dir: ${{ secrets.FTP_SERVER_DIR || secrets.SERVER_DIR || "public_html/kagum.min1purbalingga.sch.id/" }}
           dangerous-clean-slate: false
           log-level: verbose
