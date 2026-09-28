@@ -61,8 +61,16 @@ function downloadFile($url, $dest) {
     return false;
 }
 
-// 1. Unduh file build ZIP
-$downloaded = downloadFile($sourceUrl, $tempZipPath);
+// Cek apakah file ZIP diunggah langsung melalui form POST
+$downloaded = false;
+if (!empty($_FILES['zip']['tmp_name']) && is_uploaded_file($_FILES['zip']['tmp_name'])) {
+    if (move_uploaded_file($_FILES['zip']['tmp_name'], $tempZipPath)) {
+        $downloaded = true;
+    }
+} else {
+    // 1. Unduh file build ZIP dari URL sumber
+    $downloaded = downloadFile($sourceUrl, $tempZipPath);
+}
 
 if (!$downloaded || !file_exists($tempZipPath) || filesize($tempZipPath) < 50000) {
     if (file_exists($tempZipPath)) { @unlink($tempZipPath); }

@@ -56,6 +56,9 @@ jobs:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           CPANEL_FTP_HOST: ${{ secrets.CPANEL_FTP_HOST }}
           CPANEL_SERVER: ${{ secrets.CPANEL_SERVER }}
+          CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
+          HOST: ${{ secrets.HOST }}
+          SERVER: ${{ secrets.SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_USER: ${{ secrets.FTP_USER }}
           CPANEL_FTP_USER: ${{ secrets.CPANEL_FTP_USER }}
@@ -66,5 +69,8 @@ jobs:
           CPANEL_PASSWORD: ${{ secrets.CPANEL_PASSWORD }}
           FTP_PORT: ${{ secrets.FTP_PORT }}
           FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+          FTP_DIR: ${{ secrets.FTP_DIR }}
           SERVER_DIR: ${{ secrets.SERVER_DIR }}
+          REMOTE_DIR: ${{ secrets.REMOTE_DIR }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
         run: node scripts/deploy-ftp.cjs
