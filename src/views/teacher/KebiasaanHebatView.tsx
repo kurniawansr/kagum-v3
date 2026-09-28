@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CharacterHabitRecord } from '../../types';
 import {
@@ -14,9 +14,34 @@ import {
   MessageSquare,
   Loader2,
   Zap,
+  Sun,
+  Activity,
+  Utensils,
+  BookOpen,
+  Users,
+  Moon,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  X,
+  RotateCcw,
+  Layers,
+  ArrowRight,
+  ShieldCheck,
+  Award,
+  AlertCircle,
+  Shuffle,
+  Smile,
+  HeartHandshake,
+  RefreshCw
 } from 'lucide-react';
 import { INDONESIAN_MONTH_NAMES, formatIndonesianDate } from '../../utils/calendarUtils';
 import { exportToExcel, exportToPdf } from '../../utils/exportUtils';
+import {
+  REPORT_TONE_OPTIONS,
+  ReportTone,
+  generateVaried7HabitsReport
+} from '../../utils/habitReportGenerator';
 
 export const KebiasaanHebatView: React.FC = () => {
   const {
@@ -27,18 +52,39 @@ export const KebiasaanHebatView: React.FC = () => {
     currentUser,
     schoolProfile,
   } = useApp();
+
   const currentClass = currentUser?.kelas || 'Kelas IA';
-  const myStudents = students.filter((s) => s.kelas === currentClass);
+  const myStudents = useMemo(() => students.filter((s) => s.kelas === currentClass), [students, currentClass]);
 
   const currentYear = 2026;
+  const todayDateStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
   const initialMonth = new Date().getMonth();
   const initialLastDay = new Date(currentYear, initialMonth + 1, 0).getDate();
 
-  const [selectedStudentId, setSelectedStudentId] = useState<string>(myStudents[0]?.id || '');
-  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
-  const [printDate, setPrintDate] = useState(new Date().toISOString().split('T')[0]);
+  // Mode Selection: 'daily_touch' | 'monthly_table' | 'ai_whatsapp'
+  const [activeMode, setActiveMode] = useState<'daily_touch' | 'monthly_table' | 'ai_whatsapp'>('daily_touch');
 
-  // AI Diagnostic State (default to 1st and last day of selected month)
+  const [selectedStudentId, setSelectedStudentId] = useState<string>(myStudents[0]?.id || '');
+  const [selectedDate, setSelectedDate] = useState<string>(todayDateStr);
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [printDate, setPrintDate] = useState(todayDateStr);
+
+  // Notification / Toast Feedback
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+
+  const showFeedback = (type: 'success' | 'info' | 'error', text: string) => {
+    setFeedbackMsg({ type, text });
+    setTimeout(() => setFeedbackMsg(null), 3500);
+  };
+
+  // AI Diagnostic State
   const [aiStartDate, setAiStartDate] = useState(
     `${currentYear}-${String(initialMonth + 1).padStart(2, '0')}-01`
   );
@@ -47,70 +93,101 @@ export const KebiasaanHebatView: React.FC = () => {
   );
   const [aiReportText, setAiReportText] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
-  const [copyMsg, setCopyMsg] = useState('');
+  const [selectedTone, setSelectedTone] = useState<ReportTone>('islami_hangat');
+  const [variationSeed, setVariationSeed] = useState<number>(() => Math.floor(Math.random() * 1000000));
+  const [currentReportToneLabel, setCurrentReportToneLabel] = useState<string>('Penuh Doa & Sangat Hangat');
 
-  const handleMonthChange = (m: number) => {
-    setSelectedMonth(m);
-    const lastDay = new Date(currentYear, m + 1, 0).getDate();
-    setAiStartDate(`${currentYear}-${String(m + 1).padStart(2, '0')}-01`);
-    setAiEndDate(`${currentYear}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
-  };
-
-  const selectedStudent = (myStudents || []).find((s) => s.id === selectedStudentId);
-
-  // Helper to auto-sync habit records from student attendance records in a date range
-  const syncHabitsFromAttendance = (start: string, end: string) => {
-    if (!selectedStudentId) return characterRecords || [];
-
-    const studentAtts = (attendanceRecords || []).filter(
-      (a) => a.studentId === selectedStudentId && a.date >= start && a.date <= end
-    );
-
-    let updatedList = [...(characterRecords || [])];
-    let changed = false;
-
-    studentAtts.forEach((att) => {
-      const existing = updatedList.find((r) => r.studentId === selectedStudentId && r.date === att.date);
-      const isPresent = att.status === 'Hadir';
-      if (!existing) {
-        changed = true;
-        updatedList.push({
-          id: `hab-${selectedStudentId}-${att.date}`,
-          studentId: selectedStudentId,
-          date: att.date,
-          wakeUpEarly: isPresent,
-          prayers: {
-            subuh: isPresent,
-            dhuhur: isPresent,
-            ashar: isPresent,
-            maghrib: isPresent,
-            isya: isPresent,
-          },
-          exercise: isPresent,
-          healthyMeals: { pagi: isPresent, siang: isPresent, malam: isPresent },
-          loveLearning: isPresent,
-          socializing: isPresent,
-          sleepEarly: isPresent,
-        });
-      }
-    });
-
-    if (changed) {
-      setCharacterRecords(updatedList);
-    }
-    return updatedList;
-  };
-
-  // Filter records for selected student and month
-  const studentRecords = (characterRecords || []).filter(
-    (r) => r.studentId === selectedStudentId && r.date.includes(`-${String(selectedMonth + 1).padStart(2, '0')}-`)
+  // Current selected student
+  const selectedStudent = useMemo(
+    () => myStudents.find((s) => s.id === selectedStudentId) || myStudents[0],
+    [myStudents, selectedStudentId]
   );
 
+  // Current student index for fast cycling
+  const currentStudentIdx = myStudents.findIndex((s) => s.id === selectedStudentId);
+
+  const handlePrevStudent = () => {
+    if (currentStudentIdx > 0) {
+      setSelectedStudentId(myStudents[currentStudentIdx - 1].id);
+    } else if (myStudents.length > 0) {
+      setSelectedStudentId(myStudents[myStudents.length - 1].id);
+    }
+  };
+
+  const handleNextStudent = () => {
+    if (currentStudentIdx < myStudents.length - 1) {
+      setSelectedStudentId(myStudents[currentStudentIdx + 1].id);
+    } else if (myStudents.length > 0) {
+      setSelectedStudentId(myStudents[0].id);
+    }
+  };
+
+  // Navigate date
+  const handlePrevDay = () => {
+    const curr = new Date(selectedDate);
+    curr.setDate(curr.getDate() - 1);
+    setSelectedDate(curr.toISOString().split('T')[0]);
+  };
+
+  const handleNextDay = () => {
+    const curr = new Date(selectedDate);
+    curr.setDate(curr.getDate() + 1);
+    setSelectedDate(curr.toISOString().split('T')[0]);
+  };
+
+  const handleSetToday = () => {
+    setSelectedDate(todayDateStr);
+  };
+
+  // Record for the current selected student & date
+  const currentRecord = useMemo(() => {
+    return (characterRecords || []).find(
+      (r) => r.studentId === selectedStudentId && r.date === selectedDate
+    );
+  }, [characterRecords, selectedStudentId, selectedDate]);
+
+  const prayers = currentRecord?.prayers || {
+    subuh: false,
+    dhuhur: false,
+    ashar: false,
+    maghrib: false,
+    isya: false,
+  };
+
+  const meals = currentRecord?.healthyMeals || {
+    pagi: false,
+    siang: false,
+    malam: false,
+  };
+
+  // Calculate today fulfillment count (0 to 7)
+  const todayFulfilledCount = useMemo(() => {
+    if (!currentRecord) return 0;
+    let count = 0;
+    if (currentRecord.wakeUpEarly) count++;
+    if (prayers.subuh && prayers.dhuhur && prayers.ashar && prayers.maghrib && prayers.isya) count++;
+    else if (prayers.dhuhur || prayers.ashar || prayers.maghrib) count += 0.5;
+    if (currentRecord.exercise) count++;
+    if (meals.pagi && meals.siang && meals.malam) count++;
+    else if (meals.pagi || meals.siang || meals.malam) count += 0.5;
+    if (currentRecord.loveLearning) count++;
+    if (currentRecord.socializing) count++;
+    if (currentRecord.sleepEarly) count++;
+    return Math.floor(count);
+  }, [currentRecord, prayers, meals]);
+
+  // Handle single field toggle
   const handleToggleHabit = (date: string, field: keyof CharacterHabitRecord, val: any) => {
-    let existing = (characterRecords || []).find((r) => r.studentId === selectedStudentId && r.date === date);
+    if (!selectedStudentId) return;
+
+    const existing = (characterRecords || []).find(
+      (r) => r.studentId === selectedStudentId && r.date === date
+    );
 
     if (existing) {
-      const updated = (characterRecords || []).map((r) => (r.id === existing.id ? { ...r, [field]: val } : r));
+      const updated = (characterRecords || []).map((r) =>
+        r.id === existing.id ? { ...r, [field]: val } : r
+      );
       setCharacterRecords(updated);
     } else {
       const newRec: CharacterHabitRecord = {
@@ -129,258 +206,231 @@ export const KebiasaanHebatView: React.FC = () => {
     }
   };
 
-  const generate7HabitsFallbackReport = (
-    studentName: string,
-    className: string,
-    teacherName: string,
-    schoolName: string,
-    startDate: string,
-    endDate: string,
-    records: CharacterHabitRecord[]
-  ) => {
-    const totalDays = Math.max(records.length, 1);
-
-    const wakeUpCount = records.filter((r) => r.wakeUpEarly).length;
-
-    let totalPrayers = 0;
-    records.forEach((r) => {
-      if (r.prayers) {
-        if (r.prayers.subuh) totalPrayers++;
-        if (r.prayers.dhuhur) totalPrayers++;
-        if (r.prayers.ashar) totalPrayers++;
-        if (r.prayers.maghrib) totalPrayers++;
-        if (r.prayers.isya) totalPrayers++;
-      }
-    });
-    const maxPrayers = totalDays * 5;
-    const prayerPct = Math.round((totalPrayers / maxPrayers) * 100);
-
-    const exerciseCount = records.filter((r) => r.exercise).length;
-
-    let totalMeals = 0;
-    records.forEach((r) => {
-      if (r.healthyMeals) {
-        if (r.healthyMeals.pagi) totalMeals++;
-        if (r.healthyMeals.siang) totalMeals++;
-        if (r.healthyMeals.malam) totalMeals++;
-      }
-    });
-    const maxMeals = totalDays * 3;
-    const mealsPct = Math.round((totalMeals / maxMeals) * 100);
-
-    const learnCount = records.filter((r) => r.loveLearning).length;
-    const socialCount = records.filter((r) => r.socializing).length;
-    const sleepCount = records.filter((r) => r.sleepEarly).length;
-
-    const wakeUpPct = Math.round((wakeUpCount / totalDays) * 100);
-    const exercisePct = Math.round((exerciseCount / totalDays) * 100);
-    const learnPct = Math.round((learnCount / totalDays) * 100);
-    const socialPct = Math.round((socialCount / totalDays) * 100);
-    const sleepPct = Math.round((sleepCount / totalDays) * 100);
-
-    // Dynamic hash seed to generate distinctive variation even across same scores
-    const seed = `${studentName}_${startDate}_${endDate}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const pickVariant = (variants: string[], offset: number = 0) => {
-      const idx = Math.abs(seed + offset) % variants.length;
-      return variants[idx];
-    };
-
-    const wakeUpNotes = wakeUpPct >= 85
-      ? [
-          `Masya Allah, ananda ${studentName} menunjukkan disiplin luar biasa dalam bangun pagi sebelum Subuh. Wajahnya senantiasa ceria dan siap memulai hari dengan penuh energi.`,
-          `Alhamdulillah, ananda sangat teratur bangun pagi tanpa perlu dibangunkan berkali-kali. Kebiasaan mulia ini sangat mendukung kesiapan belajarnya di madrasah.`,
-          `Kedisiplinan bangun pagi ananda patut diapresiasi setinggi-tingginya. Kebugaran dan ketepatan waktunya selalu terjaga dengan sangat baik.`
-        ]
-      : wakeUpPct >= 65
-      ? [
-          `Ananda ${studentName} sudah cukup baik dalam membiasakan bangun pagi, meski sesekali di hari libur masih membutuhkan sedikit dorongan hangat dari keluarga.`,
-          `Alhamdulillah ada kemajuan yang baik dalam bangun pagi. Keteraturannya terus berkembang positif berkat bimbingan rutin Bapak/Ibu.`,
-          `Sebagian besar hari ananda dapat bangun pagi tepat waktu, tinggal menjaga konsistensi terutama saat udara pagi terasa dingin atau usai kegiatan malam.`
-        ]
-      : [
-          `Ananda masih memerlukan pendampingan santun agar dapat bangun lebih awal di pagi hari. Pengaturan jadwal tidur yang lebih dini akan sangat membantu ananda terbangun segar.`,
-          `Kebiasaan bangun pagi ananda masih dalam tahap penyesuaian. Mohon terus diberikan sentuhan lembut dan motivasi agar ananda tidak merasa terburu-buru menyambut pagi.`
-        ];
-
-    const prayerNotes = prayerPct >= 85
-      ? [
-          `Alhamdulillah, komitmen sholat 5 waktu ananda ${studentName} sangat membanggakan. Khususnya sholat Subuh dan Maghrib terpantau istiqomah dengan kesadaran diri yang tinggi.`,
-          `Masya Allah, kecintaan ananda pada ibadah sholat 5 waktu berkembang sangat subur. Ananda senantiasa antusias saat adzan berkumandang dan menjaga kekhusyukannya.`,
-          `Ibadah sholat ananda tergolong istimewa. Kedisiplinan sholat 5 waktunya menjadi pondasi akhlak yang sangat kuat bagi kepribadiannya.`
-        ]
-      : prayerPct >= 65
-      ? [
-          `Pelaksanaan sholat ananda sudah cukup baik dan rajin, terutama pada sholat Dhuhur, Ashar, dan Maghrib. Perlu sedikit rangkulan hangat untuk waktu Subuh dan Isya.`,
-          `Ananda senantiasa bersemangat menjalankan sholat, tinggal membiasakan untuk segera mengambil wudhu tepat waktu tanpa menunda-nunda.`,
-          `Alhamdulillah kesadaran ibadah ananda terus bertumbuh. Terus ajak sholat berjamaah bersama keluarga agar ananda kian termotivasi.`
-        ]
-      : [
-          `Ibadah sholat 5 waktu ananda masih memerlukan pendampingan dan teladan langsung. Pendekatan dengan cerita keteladanan Nabi akan sangat menyentuh hatinya.`,
-          `Ananda sedang berproses menyukai ibadah sholat. Mohon diajak sholat berdampingan di rumah dengan suasana yang penuh cinta dan kegembiraan.`
-        ];
-
-    const exerciseNotes = exercisePct >= 75
-      ? [
-          `Ananda ${studentName} memiliki ketahanan fisik dan kelincahan gerak yang sangat baik. Ia aktif mengikuti senam dan olahraga dengan ceria.`,
-          `Kebugaran fisik ananda sangat terpelihara berkat kegemarannya bergerak aktif dan berolahraga secara teratur.`,
-          `Jiwa sportivitas dan semangat bergerak ananda sangat prima, menjadikannya pribadi yang berenergi positif sepanjang hari.`
-        ]
-      : exercisePct >= 50
-      ? [
-          `Aktivitas fisik ananda cukup terjaga. Alangkah indahnya jika di akhir pekan ananda diajak jalan pagi santai bersama keluarga.`,
-          `Ananda sudah mau bergerak aktif, disarankan untuk menyelingi waktu santai di rumah dengan permainan gerak ringan yang menyenangkan.`
-        ]
-      : [
-          `Ananda tampak lebih menyukai kegiatan tenang di dalam ruangan. Mohon diajak bergerak atau bersepeda santai 15 menit agar daya tahan tubuhnya kian prima.`,
-          `Perlu dorongan santai agar ananda lebih gemar menggerakkan badan dan berolahraga secara berkala demi kesehatan jangka panjangnya.`
-        ];
-
-    const mealsNotes = mealsPct >= 80
-      ? [
-          `Pola makan ananda sangat teratur dengan asupan bergizi seimbang. Sarapan paginya senantiasa menjadi bekal energi konsentrasi belajar yang prima.`,
-          `Alhamdulillah, ananda tidak pemilih makanan dan gemar menyantap makanan bergizi, termasuk sayur dan buah yang disediakan.`,
-          `Kebiasaan makan sehat ananda sangat baik, menjaga daya tahan tubuh dan imunitasnya tetap optimal selama masa belajar.`
-        ]
-      : mealsPct >= 60
-      ? [
-          `Pola makan ananda cukup baik. Mohon diingatkan untuk senantiasa membiasakan sarapan sebelum berangkat dan memperbanyak minum air putih hangat.`,
-          `Keteraturan makan ananda sudah lumayan rapi, tinggal memperkaya variasi sayur dan buah segar untuk menunjang tumbuh kembangnya.`
-        ]
-      : [
-          `Perlu perhatian ekstra pada jadwal sarapan dan asupan gizi seimbang ananda agar energinya selalu tercukupi hingga siang hari.`,
-          `Mohon didampingi kebiasaan makannya agar lebih teratur dan mengurangi konsumsi jajanan manis atau makanan instan.`
-        ];
-
-    const learnNotes = learnPct >= 80
-      ? [
-          `Rasa ingin tahu ananda ${studentName} begitu tinggi! Ia gemar membaca, menyimak penjelasan guru, dan mandiri dalam menyelesaikan tugas-tugasnya.`,
-          `Masya Allah, ananda memiliki etos belajar yang cemerlang dan daya nalar kritis. Buku dan kegiatan eksplorasi adalah sahabat karibnya.`,
-          `Ananda sangat tekun dan menikmati setiap proses pembelajaran, baik saat belajar di kelas maupun saat mengulang pelajaran di rumah.`
-        ]
-      : learnPct >= 60
-      ? [
-          `Semangat belajar ananda sudah cukup baik. Suasana belajar di rumah yang tenang dan bebas gawai akan semakin melejitkan potensinya.`,
-          `Ananda memiliki bakat yang baik, tinggal dibantu mengelola konsistensi waktu belajar harian sekitar 30 menit secara istiqomah.`
-        ]
-      : [
-          `Ananda membutuhkan metode belajar yang interaktif dan menyenangkan agar rasa belajarnya tumbuh tanpa merasa terbebani.`,
-          `Mohon dampingi ananda saat mengulang pelajaran dengan penuh kesabaran serta berikan pujian tulus pada setiap usaha kecilnya.`
-        ];
-
-    const socialNotes = socialPct >= 80
-      ? [
-          `Ananda memiliki kelembutan hati, santun bertutur kata, serta sangat peduli dan gemar menolong teman-temannya di kelas.`,
-          `Karakter sosial ananda luar biasa hangat. Ia mudah bergaul, menghargai perbedaan, dan menjadi teladan kerukunan bagi kawan-kawannya.`,
-          `Empati sosial ananda sangat tinggi, ia tidak segan berbagi dan selalu menjaga perasaan orang lain dengan akhlak terpuji.`
-        ]
-      : socialPct >= 60
-      ? [
-          `Sikap sosial ananda baik dan menyenangkan. Terus bimbing ananda untuk lebih percaya diri dalam berinteraksi dan mengemukakan pendapat positif.`,
-          `Ananda dapat berteman dengan rukun, sesekali perlu diingatkan tentang indahnya berbagi dan saling memaafkan.`
-        ]
-      : [
-          `Ananda masih dalam tahap belajar mengekspresikan empati dan kerjasama. Lingkungan keluarga yang penuh kehangatan akan mengasah kepekaan sosialnya.`,
-          `Bimbing ananda untuk lebih terbuka dan senang menyapa sesama di lingkungan sekitar rumah.`
-        ];
-
-    const sleepNotes = sleepPct >= 80
-      ? [
-          `Kedisiplinan istirahat malam ananda sangat baik, tidur tepat waktu sehingga waktu istirahat otaknya sangat cukup untuk regenerasi sel tubuh.`,
-          `Ananda pandai mengelola waktu malamnya, istirahat tidur sebelum larut malam membuat paginya senantiasa cerah ceria.`,
-          `Alhamdulillah, ananda teratur tidur cepat. Pola hidup seimbang ini sangat terasa pada daya tangkapnya di pagi hari.`
-        ]
-      : sleepPct >= 60
-      ? [
-          `Jam tidur malam ananda cukup teratur, namun sesekali masih tidur agak larut. Pembatasan layar HP sebelum tidur akan sangat membantu lelapnya.`,
-          `Mohon bantu ananda menuntaskan aktivitas belajar lebih awal agar waktu tidurnya dapat dimulai sebelum pukul 21.00 WIB.`
-        ]
-      : [
-          `Jam istirahat malam ananda masih sering larut. Hal ini dapat mempengaruhi konsentrasi belajarnya di madrasah keesokan harinya.`,
-          `Mohon tegas dan bijak dalam mematikan televisi dan gawai maksimal pukul 20.00 WIB agar ananda terbiasa tidur lebih awal.`
-        ];
-
-    // Dynamic parent recommendations tailored to student's profile & period
-    const parentRecommendationsPool = [
-      `*Sentuhan Kasih & Pelukan Hangat*: Luangkan waktu 5-10 menit setiap malam sebelum tidur untuk mendengarkan cerita keseharian ananda ${studentName} dengan penuh perhatian dan kasih sayang.`,
-      `*Apresiasi Prestasi Kecil*: Berikan pujian spesifik (misal: "Ibu/Ayah bangga ananda sudah sholat tepat waktu hari ini") untuk terus memupuk rasa percaya dirinya.`,
-      `*Keteladanan Ibadah Berjamaah*: Ajak ananda sholat berjamaah bersama seluruh keluarga di rumah dan membaca doa harian bersama untuk mempererat ikatan ruhani keluarga.`,
-      `*Zona Bebas Gadget*: Buat kesepakatan manis di rumah berupa waktu santai tanpa ponsel pintar/TV antara Maghrib hingga Isya, diisi dengan tadarus atau diskusi ringan.`,
-      `*Pojok Baca & Diskusi Keluarga*: Sediakan buku bacaan bergambar/cerita islami yang menarik dan ajak ananda berdiskusi tentang pesan moral di dalamnya secara menyenangkan.`,
-      `*Aktivitas Kebugaran Bersama*: Luangkan waktu di hari Ahad pagi untuk jalan santai atau senam ringan bersama keluarga demi menjaga imunitas dan keceriaan ananda.`,
-      `*Menu Gizi Warna-Warni*: Libatkan ananda dalam memilih buah segar atau sayuran kesukaannya untuk sarapan, agar selera makan sehatnya kian bertumbuh.`,
-      `*Rutinitas Menjelang Tidur*: Ciptakan suasana kamar yang redup, nyaman, dan bacakan kisah teladan para sahabat Nabi untuk mengantarkan tidur ananda lebih awal dan tenang.`
-    ];
-
-    // Pick 3-4 distinct recommendations using seed
-    const selectedRecs: string[] = [];
-    let offset = 0;
-    while (selectedRecs.length < 4 && offset < 10) {
-      const item = pickVariant(parentRecommendationsPool, offset * 3);
-      if (!selectedRecs.includes(item)) {
-        selectedRecs.push(item);
-      }
-      offset++;
-    }
-
-    return `*LAPORAN ANALISIS DIAGNOSTIK 7 KEBIASAAN ANAK INDONESIA HEBAT*
-
-Assalamu'alaikum Wr. Wb.
-Bapak/Ibu/Wali Murid dari ananda *${studentName}*,
-
-Semoga Bapak/Ibu dan sekeluarga senantiasa berada dalam naungan rahmat, kesehatan, dan keberkahan dari Allah SWT. Kami haturkan terima kasih yang tulus atas bimbingan penuh kasih sayang yang terus dicurahkan kepada ananda di rumah.
-
-Berikut kami sampaikan rangkuman evaluasi perkembangan *7 Kebiasaan Anak Indonesia Hebat* ananda periode *${formatIndonesianDate(startDate)} s/d ${formatIndonesianDate(endDate)}* (${totalDays} Hari Pemantauan):
-
-📌 *KESIMPULAN EVALUASI PER KEBIASAAN:*
-
-*1. Bangun Pagi (${wakeUpPct}%)*
-${pickVariant(wakeUpNotes, 1)}
-
-*2. Beribadah / Sholat 5 Waktu (${prayerPct}%)*
-${pickVariant(prayerNotes, 2)}
-
-*3. Berolahraga (${exercisePct}%)*
-${pickVariant(exerciseNotes, 3)}
-
-*4. Makan Sehat & Bergizi (${mealsPct}%)*
-${pickVariant(mealsNotes, 4)}
-
-*5. Gemar Belajar (${learnPct}%)*
-${pickVariant(learnNotes, 5)}
-
-*6. Bermasyarakat (${socialPct}%)*
-${pickVariant(socialNotes, 6)}
-
-*7. Tidur Cepat (${sleepPct}%)*
-${pickVariant(sleepNotes, 7)}
-
-💡 *REKOMENDASI & SARAN KASIH UNTUK ORANG TUA:*
-${selectedRecs.map((rec, i) => `${i + 1}. ${rec}`).join('\n')}
-
-Tiada keberhasilan seorang anak tanpa doa dan ketulusan bimbingan dari kedua orang tua. Semoga ananda ${studentName} senantiasa tumbuh menjadi anak yang sholeh/sholehah, berkarakter mulia, cerdas, dan menjadi kebanggaan keluarga dunia dan akhirat. Aamiin ya Rabbal 'Alamin.
-
-Wassalamu'alaikum Wr. Wb.
-*Wali Kelas ${className}*
-_${teacherName}_`;
-  };
-
-  // Generate AI Diagnosis
-  const handleGenerateAiDiagnostic = async () => {
+  // MEGA 1-TAP ACTION: Mark all 7 habits complete for this student on selected date
+  const handleMarkAllCompleteToday = () => {
     if (!selectedStudent) return;
 
+    const date = selectedDate;
+    const fullPrayers = { subuh: true, dhuhur: true, ashar: true, maghrib: true, isya: true };
+    const fullMeals = { pagi: true, siang: true, malam: true };
+
+    const existing = (characterRecords || []).find(
+      (r) => r.studentId === selectedStudentId && r.date === date
+    );
+
+    if (existing) {
+      const updated = (characterRecords || []).map((r) =>
+        r.id === existing.id
+          ? {
+              ...r,
+              wakeUpEarly: true,
+              prayers: fullPrayers,
+              exercise: true,
+              healthyMeals: fullMeals,
+              loveLearning: true,
+              socializing: true,
+              sleepEarly: true,
+            }
+          : r
+      );
+      setCharacterRecords(updated);
+    } else {
+      const newRec: CharacterHabitRecord = {
+        id: `hab-${selectedStudentId}-${date}`,
+        studentId: selectedStudentId,
+        date,
+        wakeUpEarly: true,
+        prayers: fullPrayers,
+        exercise: true,
+        healthyMeals: fullMeals,
+        loveLearning: true,
+        socializing: true,
+        sleepEarly: true,
+      };
+      setCharacterRecords([...characterRecords, newRec]);
+    }
+
+    showFeedback('success', `Alhamdulillah! 7 Kebiasaan ananda ${selectedStudent.name} ditandai Lengkap & Tertib.`);
+  };
+
+  // Reset all habits for today
+  const handleResetToday = () => {
+    if (!selectedStudent) return;
+    const date = selectedDate;
+    const emptyPrayers = { subuh: false, dhuhur: false, ashar: false, maghrib: false, isya: false };
+    const emptyMeals = { pagi: false, siang: false, malam: false };
+
+    const existing = (characterRecords || []).find(
+      (r) => r.studentId === selectedStudentId && r.date === date
+    );
+
+    if (existing) {
+      const updated = (characterRecords || []).map((r) =>
+        r.id === existing.id
+          ? {
+              ...r,
+              wakeUpEarly: false,
+              prayers: emptyPrayers,
+              exercise: false,
+              healthyMeals: emptyMeals,
+              loveLearning: false,
+              socializing: false,
+              sleepEarly: false,
+            }
+          : r
+      );
+      setCharacterRecords(updated);
+    }
+    showFeedback('info', `Data kebiasaan tanggal ${formatIndonesianDate(selectedDate)} telah direset.`);
+  };
+
+  // MASS ACTION: Mark all students in current class complete for today
+  const handleMarkAllStudentsCompleteToday = () => {
+    const date = selectedDate;
+    const fullPrayers = { subuh: true, dhuhur: true, ashar: true, maghrib: true, isya: true };
+    const fullMeals = { pagi: true, siang: true, malam: true };
+
+    let updatedList = [...(characterRecords || [])];
+
+    myStudents.forEach((st) => {
+      const existingIdx = updatedList.findIndex((r) => r.studentId === st.id && r.date === date);
+      if (existingIdx >= 0) {
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          wakeUpEarly: true,
+          prayers: fullPrayers,
+          exercise: true,
+          healthyMeals: fullMeals,
+          loveLearning: true,
+          socializing: true,
+          sleepEarly: true,
+        };
+      } else {
+        updatedList.push({
+          id: `hab-${st.id}-${date}`,
+          studentId: st.id,
+          date,
+          wakeUpEarly: true,
+          prayers: fullPrayers,
+          exercise: true,
+          healthyMeals: fullMeals,
+          loveLearning: true,
+          socializing: true,
+          sleepEarly: true,
+        });
+      }
+    });
+
+    setCharacterRecords(updatedList);
+    showFeedback('success', `Berhasil! Seluruh siswa ${currentClass} (${myStudents.length} siswa) ditandai tertib hari ini.`);
+  };
+
+  // 1-CLICK MONTHLY ACTION: Mark entire selected month complete for this student
+  const handleMarkEntireMonthComplete = () => {
+    if (!selectedStudent) return;
+
+    const daysInMonth = new Date(currentYear, selectedMonth + 1, 0).getDate();
+    const fullPrayers = { subuh: true, dhuhur: true, ashar: true, maghrib: true, isya: true };
+    const fullMeals = { pagi: true, siang: true, malam: true };
+
+    let updatedList = [...(characterRecords || [])];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${currentYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const existingIdx = updatedList.findIndex((r) => r.studentId === selectedStudentId && r.date === dateStr);
+
+      if (existingIdx >= 0) {
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          wakeUpEarly: true,
+          prayers: fullPrayers,
+          exercise: true,
+          healthyMeals: fullMeals,
+          loveLearning: true,
+          socializing: true,
+          sleepEarly: true,
+        };
+      } else {
+        updatedList.push({
+          id: `hab-${selectedStudentId}-${dateStr}`,
+          studentId: selectedStudentId,
+          date: dateStr,
+          wakeUpEarly: true,
+          prayers: fullPrayers,
+          exercise: true,
+          healthyMeals: fullMeals,
+          loveLearning: true,
+          socializing: true,
+          sleepEarly: true,
+        });
+      }
+    }
+
+    setCharacterRecords(updatedList);
+    showFeedback('success', `Bulan ${INDONESIAN_MONTH_NAMES[selectedMonth]} berhasil diisi penuh (${daysInMonth} hari) untuk ananda ${selectedStudent.name}.`);
+  };
+
+  // Helper to auto-sync habit records from student attendance records in a date range
+  const syncHabitsFromAttendance = (start: string, end: string) => {
+    if (!selectedStudentId) return characterRecords || [];
+
+    const studentAtts = (attendanceRecords || []).filter(
+      (a) => a.studentId === selectedStudentId && a.date >= start && a.date <= end
+    );
+
+    let updatedList = [...(characterRecords || [])];
+    let changed = false;
+
+    studentAtts.forEach((att) => {
+      const existing = updatedList.find((r) => r.studentId === selectedStudentId && r.date === att.date);
+      const isPresent = att.status === 'Hadir';
+      if (!existing && isPresent) {
+        changed = true;
+        updatedList.push({
+          id: `hab-${selectedStudentId}-${att.date}`,
+          studentId: selectedStudentId,
+          date: att.date,
+          wakeUpEarly: true,
+          prayers: { subuh: true, dhuhur: true, ashar: true, maghrib: true, isya: true },
+          exercise: true,
+          healthyMeals: { pagi: true, siang: true, malam: true },
+          loveLearning: true,
+          socializing: true,
+          sleepEarly: true,
+        });
+      }
+    });
+
+    if (changed) {
+      setCharacterRecords(updatedList);
+      showFeedback('success', `Berhasil menyinkronkan kebiasaan dari catatan kehadiran siswa.`);
+    } else {
+      showFeedback('info', `Data kebiasaan sudah sesuai dengan presensi kehadiran.`);
+    }
+    return updatedList;
+  };
+
+  // Filter records for selected student and month
+  const studentRecords = useMemo(() => {
+    return (characterRecords || []).filter(
+      (r) => r.studentId === selectedStudentId && r.date.includes(`-${String(selectedMonth + 1).padStart(2, '0')}-`)
+    );
+  }, [characterRecords, selectedStudentId, selectedMonth]);
+
+  // Generate Varied AI / Algorithmic WhatsApp Report
+  const handleGenerateAiDiagnostic = async (overrideSeed?: number, overrideTone?: ReportTone) => {
+    if (!selectedStudent) return;
+
+    const currentSeed = overrideSeed !== undefined ? overrideSeed : Math.floor(Math.random() * 1000000);
+    setVariationSeed(currentSeed);
+    const toneToUse = overrideTone || selectedTone;
+
     setIsGeneratingAi(true);
-    setAiReportText('');
 
     try {
-      // Auto sync from attendance records for the selected date range
       const latestRecords = syncHabitsFromAttendance(aiStartDate, aiEndDate);
-
       const filteredRecs = latestRecords.filter(
         (r) => r.studentId === selectedStudentId && r.date >= aiStartDate && r.date <= aiEndDate
-      );
-
-      const filteredAtts = attendanceRecords.filter(
-        (a) => a.studentId === selectedStudentId && a.date >= aiStartDate && a.date <= aiEndDate
       );
 
       const res = await fetch('/api/ai/diagnose-character', {
@@ -393,58 +443,74 @@ _${teacherName}_`;
           schoolName: schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
           habitsData: filteredRecs,
           records: filteredRecs,
-          attendanceData: filteredAtts,
           startDate: aiStartDate,
           endDate: aiEndDate,
+          tone: toneToUse,
+          seed: currentSeed,
         }),
       });
 
       const data = await res.json();
       if (data.report) {
         setAiReportText(data.report);
+        if (data.toneLabel) {
+          setCurrentReportToneLabel(data.toneLabel);
+        } else {
+          const toneCfg = REPORT_TONE_OPTIONS.find((t) => t.id === toneToUse);
+          if (toneCfg) setCurrentReportToneLabel(toneCfg.label);
+        }
       } else {
-        setAiReportText(
-          generate7HabitsFallbackReport(
-            selectedStudent.name,
-            currentClass,
-            currentUser?.name || 'Wali Kelas',
-            schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
-            aiStartDate,
-            aiEndDate,
-            filteredRecs
-          )
-        );
+        const generated = generateVaried7HabitsReport({
+          studentName: selectedStudent.name,
+          className: currentClass,
+          teacherName: currentUser?.name || 'Wali Kelas',
+          schoolName: schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
+          startDate: aiStartDate,
+          endDate: aiEndDate,
+          records: filteredRecs,
+          tone: toneToUse,
+          seed: currentSeed,
+        });
+        setAiReportText(generated.reportText);
+        setCurrentReportToneLabel(generated.toneLabel);
       }
-    } catch (err) {
-      console.error(err);
+      showFeedback('success', 'Laporan narasi WhatsApp dengan variasi bahasa ramah berhasil disusun!');
+    } catch {
       const filteredRecs = characterRecords.filter(
         (r) => r.studentId === selectedStudentId && r.date >= aiStartDate && r.date <= aiEndDate
       );
-      setAiReportText(
-        generate7HabitsFallbackReport(
-          selectedStudent?.name || 'Siswa',
-          currentClass,
-          currentUser?.name || 'Wali Kelas',
-          schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
-          aiStartDate,
-          aiEndDate,
-          filteredRecs
-        )
-      );
+      const generated = generateVaried7HabitsReport({
+        studentName: selectedStudent?.name || 'Siswa',
+        className: currentClass,
+        teacherName: currentUser?.name || 'Wali Kelas',
+        schoolName: schoolProfile?.namaMadrasah || 'Madrasah Ibtidaiyah',
+        startDate: aiStartDate,
+        endDate: aiEndDate,
+        records: filteredRecs,
+        tone: toneToUse,
+        seed: currentSeed,
+      });
+      setAiReportText(generated.reportText);
+      setCurrentReportToneLabel(generated.toneLabel);
+      showFeedback('success', 'Laporan WhatsApp dengan bahasa ramah siap dikirim.');
     } finally {
       setIsGeneratingAi(false);
     }
   };
 
+  const handleNewVariation = () => {
+    const nextSeed = Math.floor(Math.random() * 1000000);
+    handleGenerateAiDiagnostic(nextSeed, selectedTone);
+  };
+
   const handleCopyText = () => {
     navigator.clipboard.writeText(aiReportText);
-    setCopyMsg('Laporan berhasil disalin ke Clipboard!');
-    setTimeout(() => setCopyMsg(''), 3000);
+    showFeedback('success', 'Teks laporan WhatsApp berhasil disalin ke clipboard!');
   };
 
   const handleSendWhatsApp = () => {
     if (!selectedStudent?.parentWa) {
-      alert('Nomor WhatsApp orang tua tidak ditemukan.');
+      showFeedback('error', 'Nomor WhatsApp orang tua belum terdaftar di data siswa.');
       return;
     }
     let wa = selectedStudent.parentWa.trim();
@@ -453,6 +519,7 @@ _${teacherName}_`;
     window.open(url, '_blank');
   };
 
+  // Export handlers
   const handleExportPdf = () => {
     const titleLines = [
       'MONITORING 7 KEBIASAAN ANAK HEBAT INDONESIA',
@@ -519,38 +586,91 @@ _${teacherName}_`;
     );
   };
 
+  // Helper to toggle all prayers at once
+  const allPrayersDone = prayers.subuh && prayers.dhuhur && prayers.ashar && prayers.maghrib && prayers.isya;
+  const toggleAllPrayers = () => {
+    const target = !allPrayersDone;
+    handleToggleHabit(selectedDate, 'prayers', {
+      subuh: target,
+      dhuhur: target,
+      ashar: target,
+      maghrib: target,
+      isya: target,
+    });
+  };
+
+  // Helper to toggle all meals at once
+  const allMealsDone = meals.pagi && meals.siang && meals.malam;
+  const toggleAllMeals = () => {
+    const target = !allMealsDone;
+    handleToggleHabit(selectedDate, 'healthyMeals', {
+      pagi: target,
+      siang: target,
+      malam: target,
+    });
+  };
+
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      {/* Toast Notification */}
+      {feedbackMsg && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl border flex items-center gap-3 text-xs font-bold transition-all animate-bounce ${
+            feedbackMsg.type === 'success'
+              ? 'bg-emerald-600 text-white border-emerald-500'
+              : feedbackMsg.type === 'error'
+              ? 'bg-rose-600 text-white border-rose-500'
+              : 'bg-slate-900 text-white border-slate-800'
+          }`}
+        >
+          {feedbackMsg.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+          ) : feedbackMsg.type === 'error' ? (
+            <AlertCircle className="w-5 h-5 text-rose-200" />
+          ) : (
+            <Sparkles className="w-5 h-5 text-amber-300" />
+          )}
+          <span>{feedbackMsg.text}</span>
+        </div>
+      )}
+
+      {/* Top Header Card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-700 flex items-center justify-center font-bold">
-              <Heart className="w-5 h-5 text-pink-600" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-600 text-white flex items-center justify-center font-bold shadow-md shrink-0">
+              <Heart className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">7 Kebiasaan Anak Indonesia Hebat & AI Diagnostik</h2>
-              <p className="text-xs text-slate-500">
-                Pemantauan kebiasaan positif siswa dan penyusunan laporan narasi otomatis untuk orang tua
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">
+                  7 Kebiasaan Anak Indonesia Hebat
+                </h2>
+                <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">
+                  Touch-Friendly
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pengisian mudah & ramah sentuhan jempol untuk guru Madrasah Ibtidaiyah
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 rounded-xl text-xs">
               <Printer className="w-3.5 h-3.5 text-slate-500" />
               <span className="font-medium text-slate-600">Cetak:</span>
               <input
                 type="date"
                 value={printDate}
                 onChange={(e) => setPrintDate(e.target.value)}
-                className="bg-transparent font-semibold text-slate-800 focus:outline-none"
+                className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer"
               />
             </div>
 
             <button
               onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-semibold text-xs rounded-xl transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs"
             >
               <FileSpreadsheet className="w-4 h-4 text-teal-600" />
               Excel
@@ -558,7 +678,7 @@ _${teacherName}_`;
 
             <button
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-semibold text-xs rounded-xl transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs"
             >
               <FileText className="w-4 h-4 text-rose-600" />
               PDF Laporan
@@ -566,325 +686,1050 @@ _${teacherName}_`;
           </div>
         </div>
 
-        {/* Student Selection Controls */}
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Pilih Siswa</label>
-            <select
-              value={selectedStudentId}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-              className="w-full px-3 py-1.5 border border-slate-200 rounded-lg bg-white font-bold text-slate-800"
+        {/* View Mode Tabs (Large, finger-friendly segmented control) */}
+        <div className="mt-4 flex flex-wrap gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200">
+          <button
+            onClick={() => setActiveMode('daily_touch')}
+            className={`flex-1 min-w-[160px] py-2.5 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeMode === 'daily_touch'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>Mode Harian (Ramah Jari)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMode('monthly_table')}
+            className={`flex-1 min-w-[160px] py-2.5 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeMode === 'monthly_table'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Mode Rekap 1 Bulan</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMode('ai_whatsapp')}
+            className={`flex-1 min-w-[160px] py-2.5 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeMode === 'ai_whatsapp'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 text-teal-300" />
+            <span>Laporan AI WhatsApp</span>
+          </button>
+        </div>
+
+        {/* Student Selector Card with Quick Cycle Arrows */}
+        <div className="mt-4 p-4 bg-slate-50/80 rounded-2xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <button
+              onClick={handlePrevStudent}
+              title="Siswa Sebelumnya"
+              className="p-2.5 bg-white hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 transition-all cursor-pointer active:scale-95"
             >
-              {myStudents.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name} (NISN: {st.nisn})
-                </option>
-              ))}
-            </select>
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="flex-1 md:w-80">
+              <label className="block text-[10px] font-extrabold uppercase text-slate-400 mb-1">
+                Pilih Siswa ({currentStudentIdx + 1} dari {myStudents.length})
+              </label>
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-bold text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+              >
+                {myStudents.map((st, i) => (
+                  <option key={st.id} value={st.id}>
+                    {i + 1}. {st.name} ({st.nisn ? `NISN: ${st.nisn}` : currentClass})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={handleNextStudent}
+              title="Siswa Berikutnya"
+              className="p-2.5 bg-white hover:bg-slate-200 border border-slate-200 rounded-xl text-slate-700 transition-all cursor-pointer active:scale-95"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Pilih Bulan Monitoring</label>
-            <select
-              value={selectedMonth}
-              onChange={(e) => handleMonthChange(parseInt(e.target.value, 10))}
-              className="w-full px-3 py-1.5 border border-slate-200 rounded-lg bg-white font-semibold text-slate-800"
-            >
-              {INDONESIAN_MONTH_NAMES.map((m, idx) => (
-                <option key={idx} value={idx}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Quick Profile Pill */}
+          {selectedStudent && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl border border-slate-200 text-xs w-full md:w-auto justify-between md:justify-start">
+              <span className="text-slate-500 font-medium">Status Siswa:</span>
+              <span className="font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                {currentClass}
+              </span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-600 font-mono text-[11px]">
+                {selectedStudent.parentWa ? `WA: ${selectedStudent.parentWa}` : 'Belum ada WA'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* AI Diagnostic Report Generator Section */}
-      <div className="bg-gradient-to-r from-emerald-900 to-teal-900 rounded-2xl p-6 text-white shadow-md space-y-4">
-        <div className="flex flex-wrap items-center justify-between pb-3 border-b border-emerald-700/60 gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <h3 className="font-extrabold text-sm text-white">
-              AI Diagnostik Karakter Anak (Gemini 3.6 Flash)
-            </h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => syncHabitsFromAttendance(aiStartDate, aiEndDate)}
-              className="px-2.5 py-1 bg-emerald-800 hover:bg-emerald-700 text-amber-300 font-bold text-[11px] rounded-lg border border-emerald-600 flex items-center gap-1 transition-colors"
-              title="Sinkronkan otomatis dari data absensi siswa"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              Otomatis dari Absensi
-            </button>
-            <span className="text-[11px] bg-amber-400/20 text-amber-300 font-bold px-2.5 py-0.5 rounded-full">
-              Laporan Otomatis WhatsApp
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="block text-[11px] font-medium text-emerald-100 mb-1">Tanggal Mulai Periode</label>
-            <input
-              type="date"
-              value={aiStartDate}
-              onChange={(e) => setAiStartDate(e.target.value)}
-              className="w-full px-3 py-1.5 bg-white/10 border border-emerald-600 rounded-lg text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-emerald-100 mb-1">Tanggal Akhir Periode</label>
-            <input
-              type="date"
-              value={aiEndDate}
-              onChange={(e) => setAiEndDate(e.target.value)}
-              className="w-full px-3 py-1.5 bg-white/10 border border-emerald-600 rounded-lg text-white"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={handleGenerateAiDiagnostic}
-              disabled={isGeneratingAi}
-              className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isGeneratingAi ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Menganalisis...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate AI Diagnostik
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* AI Output Display */}
-        {aiReportText && (
-          <div className="mt-4 p-4 bg-white/10 border border-emerald-500/40 rounded-2xl space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-amber-300 flex items-center gap-1.5">
-                <MessageSquare className="w-4 h-4" />
-                Format Narasi WhatsApp Orang Tua:
-              </span>
-              <div className="flex items-center gap-2">
+      {/* ============================================================ */}
+      {/* TAB 1: MODE HARIAN RAMAH JARI (ANTI-PEGAL) */}
+      {/* ============================================================ */}
+      {activeMode === 'daily_touch' && (
+        <div className="space-y-6">
+          {/* Daily Horizontal Date Navigator */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              {/* Prev / Today / Next Controls */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
-                  onClick={handleCopyText}
-                  className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-md font-semibold text-[11px] flex items-center gap-1"
+                  onClick={handlePrevDay}
+                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-2xs"
                 >
-                  <Copy className="w-3 h-3" />
-                  Salin Pesan
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Kemarin</span>
                 </button>
+
                 <button
-                  onClick={handleSendWhatsApp}
-                  className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-md text-[11px] flex items-center gap-1"
+                  onClick={handleSetToday}
+                  className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer active:scale-95 shadow-2xs ${
+                    selectedDate === todayDateStr
+                      ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                      : 'bg-white border border-slate-300 text-slate-800 hover:bg-slate-50'
+                  }`}
                 >
-                  <Send className="w-3 h-3" />
-                  Kirim via WhatsApp
+                  Hari Ini
+                </button>
+
+                <button
+                  onClick={handleNextDay}
+                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                >
+                  <span>Besok</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Date Display and Picker */}
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Calendar className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-black text-slate-900 tracking-tight">
+                  {formatIndonesianDate(selectedDate)}
+                </span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-2 py-1 bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 border border-slate-200 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Mega 1-Tap Action Bar (Anti-Pegal Hero) */}
+            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Progress Count */}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center font-black text-sm text-emerald-800 shrink-0">
+                  {todayFulfilledCount}/7
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold text-slate-800">
+                    {todayFulfilledCount === 7
+                      ? '🌟 Sempurna! Semua 7 Kebiasaan Terpenuhi'
+                      : todayFulfilledCount >= 4
+                      ? 'Cukup Baik (Sebagian Besar Terpenuhi)'
+                      : 'Belum Terisi / Perlu Penilaian'}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Untuk ananda <strong className="text-slate-700">{selectedStudent?.name}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleResetToday}
+                  title="Reset status hari ini"
+                  className="px-3.5 py-3 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-500" />
+                  <span>Reset</span>
+                </button>
+
+                <button
+                  onClick={handleMarkAllStudentsCompleteToday}
+                  title="Tandai seluruh siswa di kelas tertib hari ini"
+                  className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md"
+                >
+                  <Users className="w-4 h-4 text-teal-300" />
+                  <span>Terapkan 1 Kelas</span>
+                </button>
+
+                {/* THE MAIN 1-TAP BUTTON */}
+                <button
+                  onClick={handleMarkAllCompleteToday}
+                  className="flex-1 md:flex-initial px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition-all cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>1-Tap: Semua Tertib & Lengkap</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 7 Large Touch-Friendly Habit Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 1. Bangun Pagi */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs ${
+                currentRecord?.wakeUpEarly
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      currentRecord?.wakeUpEarly
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    <Sun className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 1</span>
+                    <h3 className="text-sm font-bold text-slate-900">Bangun Pagi</h3>
+                    <p className="text-[11px] text-slate-500">Bangun sebelum adzan Subuh dengan bugar</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => handleToggleHabit(selectedDate, 'wakeUpEarly', !currentRecord?.wakeUpEarly)}
+                  className={`w-full py-3.5 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs ${
+                    currentRecord?.wakeUpEarly
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {currentRecord?.wakeUpEarly ? (
+                    <>
+                      <Check className="w-5 h-5 text-white" />
+                      <span>Ya, Bangun Pagi Disiplin</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-slate-400" />
+                      <span>Sentuh untuk Tandai Bangun Pagi</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
 
-            <textarea
-              value={aiReportText}
-              onChange={(e) => setAiReportText(e.target.value)}
-              rows={8}
-              className="w-full p-3 bg-slate-900/80 border border-emerald-700/80 rounded-xl text-xs font-mono text-emerald-100 focus:outline-none"
-            />
+            {/* 2. Beribadah (Sholat 5 Waktu) */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs ${
+                allPrayersDone
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      allPrayersDone ? 'bg-emerald-600 text-white shadow-md' : 'bg-teal-100 text-teal-700'
+                    }`}
+                  >
+                    <Moon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 2</span>
+                    <h3 className="text-sm font-bold text-slate-900">Beribadah (Sholat 5 Waktu)</h3>
+                    <p className="text-[11px] text-slate-500">Ketaatan ibadah Subuh s/d Isya</p>
+                  </div>
+                </div>
 
-            {copyMsg && <p className="text-[11px] text-amber-300 font-semibold">{copyMsg}</p>}
+                <button
+                  type="button"
+                  onClick={toggleAllPrayers}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer active:scale-95 ${
+                    allPrayersDone
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  }`}
+                >
+                  {allPrayersDone ? '5 Waktu Full' : 'Tandai Semua'}
+                </button>
+              </div>
+
+              {/* 5 Big Touch Prayer Buttons */}
+              <div className="mt-4 grid grid-cols-5 gap-1.5">
+                {[
+                  { key: 'subuh', label: 'Subuh' },
+                  { key: 'dhuhur', label: 'Dhuhur' },
+                  { key: 'ashar', label: 'Ashar' },
+                  { key: 'maghrib', label: 'Maghrib' },
+                  { key: 'isya', label: 'Isya' },
+                ].map(({ key, label }) => {
+                  const isChecked = (prayers as any)[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() =>
+                        handleToggleHabit(selectedDate, 'prayers', {
+                          ...prayers,
+                          [key]: !isChecked,
+                        })
+                      }
+                      className={`h-12 rounded-xl flex flex-col items-center justify-center text-[10px] font-black transition-all cursor-pointer active:scale-90 shadow-2xs ${
+                        isChecked
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-600/30'
+                          : 'bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      <span className="text-xs">{isChecked ? '✓' : '—'}</span>
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Berolahraga */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs ${
+                currentRecord?.exercise
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      currentRecord?.exercise ? 'bg-emerald-600 text-white shadow-md' : 'bg-indigo-100 text-indigo-700'
+                    }`}
+                  >
+                    <Activity className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 3</span>
+                    <h3 className="text-sm font-bold text-slate-900">Berolahraga</h3>
+                    <p className="text-[11px] text-slate-500">Senam, lari, bermain aktif, atau olah tubuh</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => handleToggleHabit(selectedDate, 'exercise', !currentRecord?.exercise)}
+                  className={`w-full py-3.5 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs ${
+                    currentRecord?.exercise
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {currentRecord?.exercise ? (
+                    <>
+                      <Check className="w-5 h-5 text-white" />
+                      <span>Ya, Berolahraga & Aktif</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-slate-400" />
+                      <span>Sentuh untuk Tandai Olahraga</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 4. Makan Sehat & Bergizi */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs ${
+                allMealsDone
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      allMealsDone ? 'bg-emerald-600 text-white shadow-md' : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    <Utensils className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 4</span>
+                    <h3 className="text-sm font-bold text-slate-900">Makan Sehat & Bergizi</h3>
+                    <p className="text-[11px] text-slate-500">Sarapan, makan siang, dan malam bergizi</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleAllMeals}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer active:scale-95 ${
+                    allMealsDone
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  }`}
+                >
+                  {allMealsDone ? '3x Lengkap' : 'Tandai 3x'}
+                </button>
+              </div>
+
+              {/* 3 Meal Touch Buttons */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {[
+                  { key: 'pagi', label: 'Sarapan Pagi' },
+                  { key: 'siang', label: 'Makan Siang' },
+                  { key: 'malam', label: 'Makan Malam' },
+                ].map(({ key, label }) => {
+                  const isChecked = (meals as any)[key];
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() =>
+                        handleToggleHabit(selectedDate, 'healthyMeals', {
+                          ...meals,
+                          [key]: !isChecked,
+                        })
+                      }
+                      className={`h-12 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black transition-all cursor-pointer active:scale-90 shadow-2xs ${
+                        isChecked
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700 ring-2 ring-emerald-600/30'
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      <span>{isChecked ? '✓' : '—'}</span>
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 5. Gemar Belajar */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs ${
+                currentRecord?.loveLearning
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      currentRecord?.loveLearning
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-sky-100 text-sky-700'
+                    }`}
+                  >
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 5</span>
+                    <h3 className="text-sm font-bold text-slate-900">Gemar Belajar</h3>
+                    <p className="text-[11px] text-slate-500">Membaca buku, mengulang pelajaran, atau tugas</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => handleToggleHabit(selectedDate, 'loveLearning', !currentRecord?.loveLearning)}
+                  className={`w-full py-3.5 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs ${
+                    currentRecord?.loveLearning
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {currentRecord?.loveLearning ? (
+                    <>
+                      <Check className="w-5 h-5 text-white" />
+                      <span>Ya, Rajin Belajar Mandiri</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-slate-400" />
+                      <span>Sentuh untuk Tandai Gemar Belajar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 6. Bermasyarakat */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs ${
+                currentRecord?.socializing
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      currentRecord?.socializing
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-purple-100 text-purple-700'
+                    }`}
+                  >
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 6</span>
+                    <h3 className="text-sm font-bold text-slate-900">Bermasyarakat</h3>
+                    <p className="text-[11px] text-slate-500">Santun, tolong-menolong, dan peduli sesama</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => handleToggleHabit(selectedDate, 'socializing', !currentRecord?.socializing)}
+                  className={`w-full py-3.5 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs ${
+                    currentRecord?.socializing
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {currentRecord?.socializing ? (
+                    <>
+                      <Check className="w-5 h-5 text-white" />
+                      <span>Ya, Ramah & Peduli Teman</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-slate-400" />
+                      <span>Sentuh untuk Tandai Bermasyarakat</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 7. Tidur Cepat (Full width or span-2 on desktop) */}
+            <div
+              className={`p-5 rounded-2xl border transition-all shadow-xs md:col-span-2 ${
+                currentRecord?.sleepEarly
+                  ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                      currentRecord?.sleepEarly ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-800 text-white'
+                    }`}
+                  >
+                    <Moon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kebiasaan 7</span>
+                    <h3 className="text-sm font-bold text-slate-900">Tidur Cepat</h3>
+                    <p className="text-[11px] text-slate-500">Istirahat malam tepat waktu sebelum pukul 21.00 WIB</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleHabit(selectedDate, 'sleepEarly', !currentRecord?.sleepEarly)}
+                  className={`py-3.5 px-6 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs ${
+                    currentRecord?.sleepEarly
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  {currentRecord?.sleepEarly ? (
+                    <>
+                      <Check className="w-5 h-5 text-white" />
+                      <span>Ya, Tidur Tepat Waktu</span>
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 text-slate-400" />
+                      <span>Sentuh untuk Tandai Tidur Cepat</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Habit Records Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs overflow-x-auto">
-        <h3 className="font-bold text-slate-800 text-sm mb-4">
-          Tabel Jurnal 7 Kebiasaan: {selectedStudent?.name}
-        </h3>
+      {/* ============================================================ */}
+      {/* TAB 2: MODE REKAP 1 BULAN (TABLE & MASS ACTIONS) */}
+      {/* ============================================================ */}
+      {activeMode === 'monthly_table' && (
+        <div className="space-y-6">
+          {/* Quick Month Actions Bar */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-slate-700">Pilih Bulan:</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => {
+                  const m = parseInt(e.target.value, 10);
+                  setSelectedMonth(m);
+                  const lastDay = new Date(currentYear, m + 1, 0).getDate();
+                  setAiStartDate(`${currentYear}-${String(m + 1).padStart(2, '0')}-01`);
+                  setAiEndDate(`${currentYear}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`);
+                }}
+                className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-extrabold text-xs text-slate-800"
+              >
+                {INDONESIAN_MONTH_NAMES.map((m, idx) => (
+                  <option key={idx} value={idx}>
+                    {m} {currentYear}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-              <th className="p-2.5 w-10 text-center">No</th>
-              <th className="p-2.5">Tanggal</th>
-              <th className="p-2.5 text-center">Bangun Pagi</th>
-              <th className="p-2.5 text-center">Sholat 5 Waktu</th>
-              <th className="p-2.5 text-center">Olahraga</th>
-              <th className="p-2.5 text-center">Makan Sehat</th>
-              <th className="p-2.5 text-center">Belajar</th>
-              <th className="p-2.5 text-center">Bermasyarakat</th>
-              <th className="p-2.5 text-center">Tidur Cepat</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {Array.from({ length: new Date(currentYear, selectedMonth + 1, 0).getDate() }).map((_, idx) => {
-              const dayNum = idx + 1;
-              const dateStr = `2026-${String(selectedMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-              const rec = (studentRecords || []).find((r) => r.date === dateStr);
-              const prayers = rec ? rec.prayers : { subuh: false, dhuhur: false, ashar: false, maghrib: false, isya: false };
-              const meals = rec ? rec.healthyMeals : { pagi: false, siang: false, malam: false };
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => syncHabitsFromAttendance(aiStartDate, aiEndDate)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              >
+                <Zap className="w-4 h-4 text-amber-500" />
+                <span>Sinkron dari Presensi</span>
+              </button>
 
-              return (
-                <tr key={dateStr} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-2.5 text-center text-slate-500 font-medium">{idx + 1}</td>
-                  <td className="p-2.5 font-bold text-slate-800">{formatIndonesianDate(dateStr)}</td>
+              <button
+                type="button"
+                onClick={handleMarkEntireMonthComplete}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-md active:scale-95"
+              >
+                <Award className="w-4 h-4 text-amber-300" />
+                <span>1-Klik: Tandai 1 Bulan Penuh Lengkap</span>
+              </button>
+            </div>
+          </div>
 
-                  {/* Bangun Pagi */}
-                  <td className="p-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={rec ? rec.wakeUpEarly : false}
-                      onChange={(e) => handleToggleHabit(dateStr, 'wakeUpEarly', e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </td>
+          {/* Month Calendar Grid Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <span className="text-xs font-black text-slate-800">
+                Tabel Evaluasi: {selectedStudent?.name} ({INDONESIAN_MONTH_NAMES[selectedMonth]} {currentYear})
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Klik tanggal atau tombol status untuk mengubah nilai
+              </span>
+            </div>
 
-                  {/* Sholat 5 Waktu */}
-                  <td className="p-2.5 text-center">
-                    <div className="inline-flex gap-1 text-[10px] font-bold">
-                      <button
-                        type="button"
-                        title="Subuh"
-                        onClick={() => handleToggleHabit(dateStr, 'prayers', { ...prayers, subuh: !prayers.subuh })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          prayers.subuh ? 'bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        S
-                      </button>
-                      <button
-                        type="button"
-                        title="Dhuhur"
-                        onClick={() => handleToggleHabit(dateStr, 'prayers', { ...prayers, dhuhur: !prayers.dhuhur })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          prayers.dhuhur ? 'bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        D
-                      </button>
-                      <button
-                        type="button"
-                        title="Ashar"
-                        onClick={() => handleToggleHabit(dateStr, 'prayers', { ...prayers, ashar: !prayers.ashar })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          prayers.ashar ? 'bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        A
-                      </button>
-                      <button
-                        type="button"
-                        title="Maghrib"
-                        onClick={() => handleToggleHabit(dateStr, 'prayers', { ...prayers, maghrib: !prayers.maghrib })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          prayers.maghrib ? 'bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        M
-                      </button>
-                      <button
-                        type="button"
-                        title="Isya"
-                        onClick={() => handleToggleHabit(dateStr, 'prayers', { ...prayers, isya: !prayers.isya })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          prayers.isya ? 'bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        I
-                      </button>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-black text-[11px] uppercase tracking-wider">
+                    <th className="p-3 text-center w-12">No</th>
+                    <th className="p-3">Tanggal</th>
+                    <th className="p-3 text-center">Bangun Pagi</th>
+                    <th className="p-3 text-center">Sholat 5 Waktu</th>
+                    <th className="p-3 text-center">Olahraga</th>
+                    <th className="p-3 text-center">Makan Sehat</th>
+                    <th className="p-3 text-center">Belajar</th>
+                    <th className="p-3 text-center">Bermasyarakat</th>
+                    <th className="p-3 text-center">Tidur Cepat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {Array.from({ length: new Date(currentYear, selectedMonth + 1, 0).getDate() }).map((_, idx) => {
+                    const dayNum = idx + 1;
+                    const dateStr = `${currentYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                    const rec = (studentRecords || []).find((r) => r.date === dateStr);
+                    const p = rec ? rec.prayers : { subuh: false, dhuhur: false, ashar: false, maghrib: false, isya: false };
+                    const m = rec ? rec.healthyMeals : { pagi: false, siang: false, malam: false };
+                    const allP = p.subuh && p.dhuhur && p.ashar && p.maghrib && p.isya;
+                    const allM = m.pagi && m.siang && m.malam;
+
+                    return (
+                      <tr key={dateStr} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 text-center text-slate-400 font-medium">{idx + 1}</td>
+                        <td className="p-3 font-bold text-slate-900 whitespace-nowrap">
+                          {formatIndonesianDate(dateStr)}
+                        </td>
+
+                        {/* Bangun Pagi */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleToggleHabit(dateStr, 'wakeUpEarly', !rec?.wakeUpEarly)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              rec?.wakeUpEarly
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {rec?.wakeUpEarly ? '✓ Ya' : '—'}
+                          </button>
+                        </td>
+
+                        {/* Sholat 5 Waktu */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() =>
+                              handleToggleHabit(dateStr, 'prayers', {
+                                subuh: !allP,
+                                dhuhur: !allP,
+                                ashar: !allP,
+                                maghrib: !allP,
+                                isya: !allP,
+                              })
+                            }
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              allP
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : p.dhuhur || p.ashar
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {allP ? '✓ 5 Waktu' : p.dhuhur || p.ashar ? 'Sebagian' : '—'}
+                          </button>
+                        </td>
+
+                        {/* Olahraga */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleToggleHabit(dateStr, 'exercise', !rec?.exercise)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              rec?.exercise
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {rec?.exercise ? '✓ Ya' : '—'}
+                          </button>
+                        </td>
+
+                        {/* Makan Sehat */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() =>
+                              handleToggleHabit(dateStr, 'healthyMeals', {
+                                pagi: !allM,
+                                siang: !allM,
+                                malam: !allM,
+                              })
+                            }
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              allM
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : m.pagi || m.siang
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {allM ? '✓ 3x' : m.pagi || m.siang ? 'Sebagian' : '—'}
+                          </button>
+                        </td>
+
+                        {/* Belajar */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleToggleHabit(dateStr, 'loveLearning', !rec?.loveLearning)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              rec?.loveLearning
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {rec?.loveLearning ? '✓ Ya' : '—'}
+                          </button>
+                        </td>
+
+                        {/* Bermasyarakat */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleToggleHabit(dateStr, 'socializing', !rec?.socializing)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              rec?.socializing
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {rec?.socializing ? '✓ Ya' : '—'}
+                          </button>
+                        </td>
+
+                        {/* Tidur Cepat */}
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleToggleHabit(dateStr, 'sleepEarly', !rec?.sleepEarly)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              rec?.sleepEarly
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            {rec?.sleepEarly ? '✓ Ya' : '—'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB 3: LAPORAN AI WHATSAPP */}
+      {/* ============================================================ */}
+      {activeMode === 'ai_whatsapp' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 rounded-2xl p-6 text-white shadow-xl space-y-6 border border-emerald-800/40">
+            {/* Header & Student Switcher */}
+            <div className="flex flex-wrap items-center justify-between pb-4 border-b border-emerald-800/60 gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center font-bold">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm md:text-base text-white flex items-center gap-2">
+                    <span>AI Diagnostik Karakter & Pesan WhatsApp</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                      Multi-Variasi Ramah
+                    </span>
+                  </h3>
+                  <p className="text-xs text-emerald-200/80">
+                    Menyusun narasi evaluasi karakter 7 Kebiasaan yang ramah, hangat, bervariasi & menyentuh hati Orang Tua
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Student Switcher */}
+              <div className="flex items-center gap-2 bg-emerald-900/60 border border-emerald-700/60 rounded-xl p-1.5">
+                <button
+                  type="button"
+                  onClick={handlePrevStudent}
+                  title="Siswa Sebelumnya"
+                  className="p-1 rounded-lg hover:bg-emerald-800/80 text-emerald-200 hover:text-white transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="px-2 text-center">
+                  <div className="text-xs font-bold text-white truncate max-w-[150px] md:max-w-[200px]">
+                    {selectedStudent?.name}
+                  </div>
+                  <div className="text-[10px] text-emerald-300">
+                    {currentStudentIdx + 1} dari {myStudents.length} Siswa
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextStudent}
+                  title="Siswa Berikutnya"
+                  className="p-1 rounded-lg hover:bg-emerald-800/80 text-emerald-200 hover:text-white transition-colors cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Date Range Inputs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-medium text-emerald-200 mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Tanggal Awal Pemantauan</span>
+                </label>
+                <input
+                  type="date"
+                  value={aiStartDate}
+                  onChange={(e) => setAiStartDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white/10 border border-emerald-700/80 rounded-xl text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-emerald-200 mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Tanggal Akhir Pemantauan</span>
+                </label>
+                <input
+                  type="date"
+                  value={aiEndDate}
+                  onChange={(e) => setAiEndDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white/10 border border-emerald-700/80 rounded-xl text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+            </div>
+
+            {/* Multi-Tone & Style Selector */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-emerald-100 flex items-center gap-2">
+                  <Smile className="w-4 h-4 text-amber-300" />
+                  <span>Pilihan Gaya & Bahasa Ramah Laporan:</span>
+                </label>
+                <span className="text-[11px] text-emerald-300/80">
+                  Tiap gaya memiliki kosakata & sapaan unik
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {REPORT_TONE_OPTIONS.map((opt) => {
+                  const isSelected = selectedTone === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSelectedTone(opt.id)}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
+                        isSelected
+                          ? 'bg-amber-400/20 border-amber-400 text-white shadow-md ring-1 ring-amber-400/50'
+                          : 'bg-white/5 border-emerald-800/60 text-emerald-200 hover:bg-white/10 hover:border-emerald-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          {opt.label}
+                        </span>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
+                            isSelected
+                              ? 'bg-amber-400 text-slate-950 font-bold'
+                              : 'bg-emerald-900/60 text-emerald-300'
+                          }`}
+                        >
+                          {opt.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 line-clamp-2 leading-relaxed">
+                        {opt.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => handleGenerateAiDiagnostic(undefined, selectedTone)}
+                disabled={isGeneratingAi}
+                className="flex-1 py-3 px-5 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs md:text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+              >
+                {isGeneratingAi ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>Menyusun Laporan Ramah...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-slate-950" />
+                    <span>Susun Laporan dengan Gaya Ini</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNewVariation}
+                disabled={isGeneratingAi}
+                title="Ganti ke kalimat dan variasi sapaan baru"
+                className="py-3 px-4 bg-emerald-800/80 hover:bg-emerald-700/80 text-white font-bold text-xs rounded-xl border border-emerald-600/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95 shadow-md"
+              >
+                <Shuffle className="w-4 h-4 text-amber-300" />
+                <span>Buat Variasi Lain (Acak Bahasa)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* AI Narrative Result Card */}
+          {aiReportText && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                    <MessageSquare className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-800">Pratinjau Pesan WhatsApp</h4>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                        Gaya: {currentReportToneLabel}
+                      </span>
                     </div>
-                  </td>
+                    <p className="text-[11px] text-slate-500">
+                      Pesan untuk Orang Tua ananda <strong>{selectedStudent?.name}</strong>
+                    </p>
+                  </div>
+                </div>
 
-                  {/* Olahraga */}
-                  <td className="p-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={rec ? rec.exercise : false}
-                      onChange={(e) => handleToggleHabit(dateStr, 'exercise', e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </td>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleNewVariation}
+                    disabled={isGeneratingAi}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title="Ganti redaksi kalimat dengan variasi ramah yang berbeda"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-amber-700 ${isGeneratingAi ? 'animate-spin' : ''}`} />
+                    <span>Acak Kalimat Baru</span>
+                  </button>
 
-                  {/* Makan Sehat */}
-                  <td className="p-2.5 text-center">
-                    <div className="inline-flex gap-1 text-[10px] font-bold">
-                      <button
-                        type="button"
-                        title="Makan Pagi"
-                        onClick={() => handleToggleHabit(dateStr, 'healthyMeals', { ...meals, pagi: !meals.pagi })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          meals.pagi ? 'bg-teal-600 text-white shadow-2xs hover:bg-teal-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        Pagi
-                      </button>
-                      <button
-                        type="button"
-                        title="Makan Siang"
-                        onClick={() => handleToggleHabit(dateStr, 'healthyMeals', { ...meals, siang: !meals.siang })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          meals.siang ? 'bg-teal-600 text-white shadow-2xs hover:bg-teal-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        Siang
-                      </button>
-                      <button
-                        type="button"
-                        title="Makan Malam"
-                        onClick={() => handleToggleHabit(dateStr, 'healthyMeals', { ...meals, malam: !meals.malam })}
-                        className={`px-1.5 py-0.5 rounded transition-all cursor-pointer font-bold ${
-                          meals.malam ? 'bg-teal-600 text-white shadow-2xs hover:bg-teal-700' : 'bg-slate-100 text-slate-400 border border-slate-200 line-through hover:bg-slate-200'
-                        }`}
-                      >
-                        Mlm
-                      </button>
-                    </div>
-                  </td>
+                  <button
+                    onClick={handleCopyText}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Copy className="w-4 h-4 text-slate-600" />
+                    <span>Salin Pesan</span>
+                  </button>
 
-                  {/* Belajar */}
-                  <td className="p-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={rec ? rec.loveLearning : false}
-                      onChange={(e) => handleToggleHabit(dateStr, 'loveLearning', e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </td>
+                  <button
+                    onClick={handleSendWhatsApp}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Kirim ke WhatsApp Orang Tua</span>
+                  </button>
+                </div>
+              </div>
 
-                  {/* Bermasyarakat */}
-                  <td className="p-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={rec ? rec.socializing : false}
-                      onChange={(e) => handleToggleHabit(dateStr, 'socializing', e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </td>
-
-                  {/* Tidur Cepat */}
-                  <td className="p-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={rec ? rec.sleepEarly : false}
-                      onChange={(e) => handleToggleHabit(dateStr, 'sleepEarly', e.target.checked)}
-                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              {/* Chat Simulation Container */}
+              <div className="bg-[#efeae2] p-4 rounded-xl border border-slate-200 relative">
+                <div className="max-w-2xl bg-white p-4 rounded-xl shadow-xs border border-slate-200/80 font-sans text-xs text-slate-800 leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto">
+                  {aiReportText}
+                </div>
+                <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
+                  <span>💡 Tips: Anda dapat langsung menyalin teks atau klik <strong>Kirim ke WhatsApp</strong> untuk membuka chat dengan orang tua.</span>
+                  <span className="font-mono text-[10px] text-slate-400">Variasi #{variationSeed % 1000}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

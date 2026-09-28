@@ -273,6 +273,51 @@ $db_pass = '${dbPass}';
                 </div>
               )}
             </div>
+          ) : testResult?.code === 'PREVIEW_ENVIRONMENT' ? (
+            <div className="p-6 bg-sky-50/95 border border-sky-300 rounded-2xl space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-sky-100 rounded-xl text-sky-700 shrink-0 mt-0.5">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div className="space-y-3 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-extrabold text-sky-950">
+                        APLIKASI AKTIF DI PREVIEW AI STUDIO (PENYIMPANAN LOKAL AKTIF)
+                      </h3>
+                      <span className="px-2 py-0.5 bg-sky-200 text-sky-900 font-bold rounded text-[10px]">
+                        PREVIEW_MODE
+                      </span>
+                    </div>
+
+                    <a
+                      href={directTestUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-sky-800 hover:text-sky-950 bg-sky-100 hover:bg-sky-200 px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Uji Langsung api.php di Tab Baru
+                    </a>
+                  </div>
+
+                  <div className="p-3.5 bg-white/90 border border-sky-200 rounded-xl text-xs space-y-2 text-slate-800">
+                    <div className="font-bold text-sky-900 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-sky-600 shrink-0" />
+                      Status Sistem Saat Ini:
+                    </div>
+                    <div className="space-y-1.5 text-[11px] text-slate-700">
+                      <p>
+                        Aplikasi saat ini dibuka melalui link <strong>Preview AI Studio</strong> (Google Cloud Run / Node.js). Semua fitur (Absensi, Nilai, Jurnal, Karakter, dll.) <strong>berjalan normal 100%</strong> menggunakan penyimpanan lokal.
+                      </p>
+                      <p className="text-emerald-800 font-semibold">
+                        💡 <strong>Untuk Menghubungkan ke MySQL cPanel Live:</strong> Masukkan domain cPanel Anda (contoh: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">https://kagum.min1purbalingga.sch.id</code>) pada kotak <em>"Hubungkan ke Domain cPanel Live"</em> di bawah ini, lalu klik <strong>"Simpan & Tes Koneksi"</strong>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="p-6 bg-red-50/95 border border-red-200 rounded-2xl space-y-4">
               <div className="flex items-start gap-3">
@@ -281,9 +326,7 @@ $db_pass = '${dbPass}';
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-extrabold text-red-950">
-                        {testResult?.code === 'PREVIEW_ENVIRONMENT'
-                          ? 'ANDA MEMBUKA APLIKASI DI PREVIEW AI STUDIO (BUKAN DI cPANEL LANGSUNG)'
-                          : testResult?.code === 'PHP_EXTENSION_MISSING'
+                        {testResult?.code === 'PHP_EXTENSION_MISSING'
                           ? 'EKSTENSI MYSQL BELUM DIAKTIFKAN DI PHP 8.1 / 8.2 cPANEL!'
                           : testResult?.code === 'DB_ACCESS_DENIED'
                           ? 'USER MYSQL BELUM DIBERI HAK AKSES KE DATABASE (ALL PRIVILEGES)!'
@@ -307,23 +350,14 @@ $db_pass = '${dbPass}';
                     </a>
                   </div>
 
-                  {/* Penjelasan Khusus untuk Kasus "Sudah diubah ke PHP 8.1/8.2 namun masih belum terhubung" */}
+                  {/* Penjelasan Khusus untuk Kasus Error MySQL */}
                   <div className="p-3.5 bg-white/90 border border-red-200 rounded-xl text-xs space-y-2 text-slate-800">
                     <div className="font-bold text-red-900 flex items-center gap-2">
                       <Info className="w-4 h-4 text-red-600 shrink-0" />
-                      Kenapa status masih belum terhubung setelah mengubah ke PHP 8.1 / 8.2?
+                      Kenapa status masih belum terhubung?
                     </div>
 
-                    {testResult?.code === 'PREVIEW_ENVIRONMENT' ? (
-                      <div className="space-y-1.5 text-[11px] text-slate-700">
-                        <p>
-                          <strong>Penyebab Utama:</strong> Anda saat ini sedang mengakses link <strong>Preview AI Studio</strong> (Google Cloud), <em>bukan</em> alamat domain hosting cPanel Anda. Server Node.js di link preview ini tidak menjalankan PHP cPanel Anda, sehingga pengubahan PHP di cPanel tidak akan merubah status tombol tes di link preview ini secara otomatis.
-                        </p>
-                        <p className="text-emerald-800 font-semibold">
-                          💡 <strong>Solusi Mudah:</strong> Masukkan alamat domain cPanel Anda (contoh: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">https://min1purbalingga.sch.id</code>) pada kotak <strong>"Hubungkan ke Domain cPanel Live"</strong> di bawah ini, lalu klik <strong>"Simpan & Tes Koneksi"</strong>.
-                        </p>
-                      </div>
-                    ) : testResult?.code === 'PHP_EXTENSION_MISSING' || testResult?.code === 'DRIVER_NOT_FOUND' ? (
+                    {testResult?.code === 'PHP_EXTENSION_MISSING' || testResult?.code === 'DRIVER_NOT_FOUND' ? (
                       <div className="space-y-1.5 text-[11px] text-slate-700">
                         <p>
                           <strong>Penyebab:</strong> Ketika beralih ke PHP 8.1 atau 8.2 di cPanel (CloudLinux / Select PHP Version), ekstensi database <code>pdo_mysql</code> dan <code>mysqli</code> seringkali belum dicentang secara default.

@@ -155,11 +155,19 @@ const MainLayout: React.FC = () => {
   const [notifFilter, setNotifFilter] = useState<'semua' | 'unread'>('semua');
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
-  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+  const [dbStatus, setDbStatus] = useState<'online' | 'preview' | 'offline' | 'checking'>('checking');
 
   useEffect(() => {
     ApiService.testConnection().then((res) => {
-      setDbConnected(res.status === 'success' && !!res.connected);
+      if (res.status === 'success' && !!res.connected) {
+        setDbStatus('online');
+      } else if (res.code === 'PREVIEW_ENVIRONMENT' || res.is_preview) {
+        setDbStatus('preview');
+      } else {
+        setDbStatus('offline');
+      }
+    }).catch(() => {
+      setDbStatus('preview');
     });
   }, [activeTab]);
 
@@ -597,25 +605,23 @@ const MainLayout: React.FC = () => {
 
             {/* Database Status Badge */}
             <button
-              onClick={() => {
-                if (userRole === 'admin') {
-                  setActiveTab('deploy-mysql');
-                } else {
-                  alert(dbConnected ? 'Status: Terhubung ke Database MySQL' : 'Status: Belum Terhubung ke Database MySQL. Hubungi Admin.');
-                }
-              }}
-              title="Status Database MySQL"
+              onClick={() => setActiveTab('deploy-mysql')}
+              title="Status Database & Koneksi MySQL cPanel"
               className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
-                dbConnected === true
+                dbStatus === 'online'
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
-                  : dbConnected === false
-                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 animate-pulse shadow-2xs'
-                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                  : dbStatus === 'preview'
+                  ? 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100 shadow-2xs'
+                  : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 shadow-2xs'
               }`}
             >
               <Database className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">
-                {dbConnected === true ? 'MySQL DB Online' : dbConnected === false ? 'MySQL DB Offline' : 'Cek MySQL...'}
+                {dbStatus === 'online'
+                  ? 'MySQL DB Online'
+                  : dbStatus === 'preview'
+                  ? 'Mode Preview (Lokal Aktif)'
+                  : 'MySQL DB Offline'}
               </span>
             </button>
 
