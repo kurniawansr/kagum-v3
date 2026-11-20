@@ -169,6 +169,16 @@ export interface DansosRecord {
   amount: number;
 }
 
+export interface DansosExpense {
+  id: string;
+  title: string;
+  recipient?: string;
+  amount: number;
+  date: string;
+  kelas?: string;
+  note?: string;
+}
+
 export interface SyahriyahJQRecord {
   id: string;
   studentId: string;
@@ -184,6 +194,8 @@ export interface PaymentCategory {
   name: string;
   totalAmount?: number;
   nominal?: number;
+  kelas?: string;
+  description?: string;
 }
 
 export interface PaymentInstallment {
@@ -192,6 +204,7 @@ export interface PaymentInstallment {
   studentId: string;
   date: string;
   amount: number;
+  note?: string;
 }
 
 export interface DonationCategory {
@@ -200,6 +213,18 @@ export interface DonationCategory {
   type: 'Iuran' | 'Sumbangan';
   nature: 'Seikhlasnya' | 'Ditentukan';
   targetNominal?: number;
+  kelas?: string;
+  description?: string;
+  dueDate?: string;
+}
+
+export interface DonationExpense {
+  id: string;
+  categoryId: string;
+  title: string;
+  amount: number;
+  date: string;
+  note?: string;
 }
 
 export interface DonationPayment {

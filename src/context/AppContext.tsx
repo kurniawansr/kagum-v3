@@ -13,11 +13,13 @@ import {
   RemedialRecord,
   StudentTask,
   DansosRecord,
+  DansosExpense,
   SyahriyahJQRecord,
   PaymentCategory,
   PaymentInstallment,
   DonationCategory,
   DonationPayment,
+  DonationExpense,
   AssessmentAnalysisRecord,
   SystemNotification,
   UserActivityLog,
@@ -72,6 +74,8 @@ interface AppContextType {
   setStudentTasks: React.Dispatch<React.SetStateAction<StudentTask[]>>;
   dansosRecords: DansosRecord[];
   setDansosRecords: React.Dispatch<React.SetStateAction<DansosRecord[]>>;
+  dansosExpenses: DansosExpense[];
+  setDansosExpenses: React.Dispatch<React.SetStateAction<DansosExpense[]>>;
   syahriyahJQRecords: SyahriyahJQRecord[];
   setSyahriyahJQRecords: React.Dispatch<React.SetStateAction<SyahriyahJQRecord[]>>;
   paymentCategories: PaymentCategory[];
@@ -82,6 +86,8 @@ interface AppContextType {
   setDonationCategories: React.Dispatch<React.SetStateAction<DonationCategory[]>>;
   donationPayments: DonationPayment[];
   setDonationPayments: React.Dispatch<React.SetStateAction<DonationPayment[]>>;
+  donationExpenses: DonationExpense[];
+  setDonationExpenses: React.Dispatch<React.SetStateAction<DonationExpense[]>>;
   assessmentAnalyses: AssessmentAnalysisRecord[];
   setAssessmentAnalyses: React.Dispatch<React.SetStateAction<AssessmentAnalysisRecord[]>>;
 
@@ -179,6 +185,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     loadStorage<DansosRecord[]>('kagum_dansos', [])
   );
 
+  const [dansosExpenses, setDansosExpenses] = useState<DansosExpense[]>(() =>
+    loadStorage<DansosExpense[]>('kagum_dansosExpenses', [])
+  );
+
   const [syahriyahJQRecords, setSyahriyahJQRecords] = useState<SyahriyahJQRecord[]>(() =>
     loadStorage<SyahriyahJQRecord[]>('kagum_syahriyahJQ', [])
   );
@@ -203,6 +213,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [donationPayments, setDonationPayments] = useState<DonationPayment[]>(() =>
     loadStorage<DonationPayment[]>('kagum_donationPayments', [])
+  );
+
+  const [donationExpenses, setDonationExpenses] = useState<DonationExpense[]>(() =>
+    loadStorage<DonationExpense[]>('kagum_donationExpenses', [])
   );
 
   const [assessmentAnalyses, setAssessmentAnalyses] = useState<AssessmentAnalysisRecord[]>(() =>
@@ -296,11 +310,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (data.kagum_remedials && Array.isArray(data.kagum_remedials)) setRemedialRecords(data.kagum_remedials);
           if (data.kagum_tasks && Array.isArray(data.kagum_tasks)) setStudentTasks(data.kagum_tasks);
           if (data.kagum_dansos && Array.isArray(data.kagum_dansos)) setDansosRecords(data.kagum_dansos);
+          if (data.kagum_dansosExpenses && Array.isArray(data.kagum_dansosExpenses)) setDansosExpenses(data.kagum_dansosExpenses);
           if (data.kagum_syahriyahJQ && Array.isArray(data.kagum_syahriyahJQ)) setSyahriyahJQRecords(data.kagum_syahriyahJQ);
           if (data.kagum_paymentCategories && Array.isArray(data.kagum_paymentCategories)) setPaymentCategories(data.kagum_paymentCategories);
           if (data.kagum_paymentInstallments && Array.isArray(data.kagum_paymentInstallments)) setPaymentInstallments(data.kagum_paymentInstallments);
           if (data.kagum_donationCategories && Array.isArray(data.kagum_donationCategories)) setDonationCategories(data.kagum_donationCategories);
           if (data.kagum_donationPayments && Array.isArray(data.kagum_donationPayments)) setDonationPayments(data.kagum_donationPayments);
+          if (data.kagum_donationExpenses && Array.isArray(data.kagum_donationExpenses)) setDonationExpenses(data.kagum_donationExpenses);
           if (data.kagum_assessmentAnalyses && Array.isArray(data.kagum_assessmentAnalyses)) setAssessmentAnalyses(data.kagum_assessmentAnalyses);
           if (data.kagum_notifications && Array.isArray(data.kagum_notifications)) setSystemNotifications(data.kagum_notifications);
           if (data.kagum_activityLogs && Array.isArray(data.kagum_activityLogs)) setUserActivityLogs(data.kagum_activityLogs);
@@ -338,11 +354,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => { syncHelper('kagum_remedials', remedialRecords); }, [remedialRecords]);
   useEffect(() => { syncHelper('kagum_tasks', studentTasks); }, [studentTasks]);
   useEffect(() => { syncHelper('kagum_dansos', dansosRecords); }, [dansosRecords]);
+  useEffect(() => { syncHelper('kagum_dansosExpenses', dansosExpenses); }, [dansosExpenses]);
   useEffect(() => { syncHelper('kagum_syahriyahJQ', syahriyahJQRecords); }, [syahriyahJQRecords]);
   useEffect(() => { syncHelper('kagum_paymentCategories', paymentCategories); }, [paymentCategories]);
   useEffect(() => { syncHelper('kagum_paymentInstallments', paymentInstallments); }, [paymentInstallments]);
   useEffect(() => { syncHelper('kagum_donationCategories', donationCategories); }, [donationCategories]);
   useEffect(() => { syncHelper('kagum_donationPayments', donationPayments); }, [donationPayments]);
+  useEffect(() => { syncHelper('kagum_donationExpenses', donationExpenses); }, [donationExpenses]);
   useEffect(() => { syncHelper('kagum_assessmentAnalyses', assessmentAnalyses); }, [assessmentAnalyses]);
   useEffect(() => { syncHelper('kagum_notifications', systemNotifications); }, [systemNotifications]);
   useEffect(() => { syncHelper('kagum_activityLogs', userActivityLogs); }, [userActivityLogs]);
@@ -372,11 +390,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setRemedialRecords([]);
     setStudentTasks([]);
     setDansosRecords([]);
+    setDansosExpenses([]);
     setSyahriyahJQRecords([]);
     setPaymentCategories([]);
     setPaymentInstallments([]);
     setDonationCategories([]);
     setDonationPayments([]);
+    setDonationExpenses([]);
     setAssessmentAnalyses(initialAssessmentAnalyses as AssessmentAnalysisRecord[]);
     setSystemNotifications(initialNotifications);
     setUserActivityLogs(initialActivityLogs);
@@ -421,6 +441,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setStudentTasks,
         dansosRecords,
         setDansosRecords,
+        dansosExpenses,
+        setDansosExpenses,
         syahriyahJQRecords,
         setSyahriyahJQRecords,
         paymentCategories,
@@ -431,6 +453,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setDonationCategories,
         donationPayments,
         setDonationPayments,
+        donationExpenses,
+        setDonationExpenses,
         assessmentAnalyses,
         setAssessmentAnalyses,
         systemNotifications,

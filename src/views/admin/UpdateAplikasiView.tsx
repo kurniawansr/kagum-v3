@@ -115,7 +115,7 @@ export const UpdateAplikasiView: React.FC = () => {
     setTriggeringAutoUpdate(true);
     setStatusMessage({
       type: 'info',
-      text: `Menghubungi server cPanel (${targetCpanelUrl}/update.php) untuk menjalankan proses auto-update...`
+      text: 'Langkah 1/2: Mengambil paket pembaruan rilis terbaru dari sistem...'
     });
 
     try {
@@ -126,30 +126,65 @@ export const UpdateAplikasiView: React.FC = () => {
 
       setCustomCpanelUrl(cleanUrl);
 
-      const updaterEndpoint = `${cleanUrl}/update.php?source=${encodeURIComponent(officialZipUrl)}&_t=${Date.now()}`;
+      // 1. Ambil file ZIP rilis terbaru langsung dari origin aplikasi saat ini
+      const zipRes = await fetch('/cpanel-siap-upload.zip?t=' + Date.now(), {
+        headers: { 'Accept': 'application/zip, application/octet-stream' }
+      });
+
+      if (!zipRes.ok) {
+        throw new Error('Gagal mengambil file build ZIP pembaruan dari sistem.');
+      }
+
+      const zipBlob = await zipRes.blob();
+      if (zipBlob.size < 50000) {
+        throw new Error('Paket pembaruan belum siap atau rusak.');
+      }
+
+      setStatusMessage({
+        type: 'info',
+        text: `Langkah 2/2: Mengirimkan ${(zipBlob.size / 1024).toFixed(0)} KB & mengekstrak otomatis ke ${cleanUrl}/update.php...`
+      });
+
+      // 2. Kirimkan file ZIP via FormData POST langsung ke update.php di cPanel
+      const formData = new FormData();
+      formData.append('zip', zipBlob, 'cpanel-siap-upload.zip');
+      formData.append('format', 'json');
+
+      const updaterEndpoint = `${cleanUrl}/update.php`;
 
       const res = await fetch(updaterEndpoint, {
-        method: 'GET',
-        headers: { Accept: 'application/json' }
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        },
+        body: formData,
       });
+
+      if (!res.ok) {
+        throw new Error(`Server cPanel merespons dengan HTTP ${res.status}`);
+      }
 
       const data = await res.json();
 
       if (data.status === 'success') {
         setStatusMessage({
           type: 'success',
-          text: `Selamat! Server cPanel berhasil mendownload & mengekstrak pembaruan secara otomatis! (${data.total_files_extracted || 'semua'} file diekstrak). Silakan buka website Anda.`
+          text: `Alhamdulillah! Berhasil! Server cPanel telah mengekstrak ${data.total_files_extracted || 'seluruh'} file pembaruan secara otomatis! Silakan buka atau refresh website madrasah Anda.`
         });
       } else {
         setStatusMessage({
           type: 'error',
-          text: `Respons Server cPanel: ${data.message || 'Gagal update'}. Saran: ${data.hint || 'Gunakan metode Upload File ZIP via File Manager cPanel.'}`
+          text: `Respons cPanel: ${data.message || 'Gagal update'}. Silakan gunakan form Web Updater di ${cleanUrl}/update.php`
         });
       }
     } catch (err: any) {
+      console.warn('Auto update exception:', err);
+      let cleanUrl = targetCpanelUrl.trim().replace(/\/+$/, '');
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) cleanUrl = 'https://' + cleanUrl;
+
       setStatusMessage({
         type: 'info',
-        text: `Permintaan update telah dikirim ke cPanel. Jika file update.php belum ada di cPanel, silakan unggah cpanel-siap-upload.zip ke File Manager cPanel (hanya 1x unggah).`
+        text: `Koneksi langsung dibatasi oleh CORS/Firewall hosting. Solusi Cepat: Buka halaman Web Updater kami di: ${cleanUrl}/update.php lalu pilih file cpanel-siap-upload.zip untuk ekstrak instan (tanpa login cPanel)!`
       });
     } finally {
       setTriggeringAutoUpdate(false);

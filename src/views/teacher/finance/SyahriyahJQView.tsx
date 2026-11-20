@@ -25,15 +25,20 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
-  Download
+  Download,
+  MessageCircle,
+  Copy,
+  ExternalLink,
+  X,
+  Info
 } from 'lucide-react';
 import { exportToExcel, exportToPdf } from '../../../utils/exportUtils';
-import { SyahriyahJQRecord } from '../../../types';
+import { SyahriyahJQRecord, Student } from '../../../types';
 
 export const SyahriyahJQView: React.FC = () => {
-  const { students, syahriyahJQRecords, setSyahriyahJQRecords, currentUser, schoolProfile } = useApp();
+  const { students, syahriyahJQRecords, setSyahriyahJQRecords, currentUser, schoolProfile, logActivity } = useApp();
   const currentClass = currentUser?.kelas || 'Kelas 1A';
-  const myStudents = useApp().students.filter((s) => s.kelas === currentClass);
+  const myStudents = useMemo(() => students.filter((s) => s.kelas === currentClass), [students, currentClass]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<'loket' | 'matriks' | 'rekap'>('loket');
@@ -90,23 +95,36 @@ export const SyahriyahJQView: React.FC = () => {
     nisn: string;
   } | null>(null);
 
-  // Urutan Tahun Ajaran: Juli (index 6) s.d. Juni (index 5)
+  // Modal Kirim Pesan WhatsApp
+  const [waModalData, setWaModalData] = useState<{
+    student: Student;
+    messageText: string;
+  } | null>(null);
+
+  // Urutan Tahun Ajaran: Juli (index 6, LIBUR/BEBAS) s.d. Juni (index 5)
+  // Bulan Juli belum ada kegiatan mengaji sehingga BEBAS syahriyah (11 bulan aktif)
   const monthsAcademicOrder = useMemo(
     () => [
-      { name: 'Juli', short: 'Jul', index: 6, order: 1 },
-      { name: 'Agustus', short: 'Agt', index: 7, order: 2 },
-      { name: 'September', short: 'Sep', index: 8, order: 3 },
-      { name: 'Oktober', short: 'Okt', index: 9, order: 4 },
-      { name: 'November', short: 'Nov', index: 10, order: 5 },
-      { name: 'Desember', short: 'Des', index: 11, order: 6 },
-      { name: 'Januari', short: 'Jan', index: 0, order: 7 },
-      { name: 'Februari', short: 'Feb', index: 1, order: 8 },
-      { name: 'Maret', short: 'Mar', index: 2, order: 9 },
-      { name: 'April', short: 'Apr', index: 3, order: 10 },
-      { name: 'Mei', short: 'Mei', index: 4, order: 11 },
-      { name: 'Juni', short: 'Jun', index: 5, order: 12 },
+      { name: 'Juli', short: 'Jul', index: 6, order: 1, isExempt: true },
+      { name: 'Agustus', short: 'Agt', index: 7, order: 2, isExempt: false },
+      { name: 'September', short: 'Sep', index: 8, order: 3, isExempt: false },
+      { name: 'Oktober', short: 'Okt', index: 9, order: 4, isExempt: false },
+      { name: 'November', short: 'Nov', index: 10, order: 5, isExempt: false },
+      { name: 'Desember', short: 'Des', index: 11, order: 6, isExempt: false },
+      { name: 'Januari', short: 'Jan', index: 0, order: 7, isExempt: false },
+      { name: 'Februari', short: 'Feb', index: 1, order: 8, isExempt: false },
+      { name: 'Maret', short: 'Mar', index: 2, order: 9, isExempt: false },
+      { name: 'April', short: 'Apr', index: 3, order: 10, isExempt: false },
+      { name: 'Mei', short: 'Mei', index: 4, order: 11, isExempt: false },
+      { name: 'Juni', short: 'Jun', index: 5, order: 12, isExempt: false },
     ],
     []
+  );
+
+  // 11 Bulan Aktif yang wajib membayar syahriyah
+  const activeMonths = useMemo(
+    () => monthsAcademicOrder.filter((m) => !m.isExempt),
+    [monthsAcademicOrder]
   );
 
   const selectedStudent = useMemo(
@@ -137,6 +155,9 @@ export const SyahriyahJQView: React.FC = () => {
 
   // 1-Click Toggle Pembayaran Bulan
   const handleToggleMonthPayment = (studentId: string, monthIndex: number) => {
+    // Abaikan jika bulan Juli (karena bebas syahriyah)
+    if (monthIndex === 6) return;
+
     const existing = (syahriyahJQRecords || []).find(
       (r) => r.studentId === studentId && r.monthIndex === monthIndex
     );
@@ -194,8 +215,12 @@ export const SyahriyahJQView: React.FC = () => {
   const handlePaySelectedMonths = () => {
     if (!selectedStudent || selectedMonthsToPay.length === 0) return;
 
+    // Filter keluar bulan Juli jika sempat terpilih
+    const validMonths = selectedMonthsToPay.filter((m) => m !== 6);
+    if (validMonths.length === 0) return;
+
     const newRecords = [...(syahriyahJQRecords || [])];
-    selectedMonthsToPay.forEach((mIndex) => {
+    validMonths.forEach((mIndex) => {
       const existingIndex = newRecords.findIndex(
         (r) => r.studentId === selectedStudent.id && r.monthIndex === mIndex
       );
@@ -217,7 +242,7 @@ export const SyahriyahJQView: React.FC = () => {
     setSyahriyahJQRecords(newRecords);
     setMessage({
       type: 'success',
-      text: `Berhasil mencatat pembayaran ${selectedMonthsToPay.length} bulan untuk ${selectedStudent.name} (Total: Rp ${(selectedMonthsToPay.length * nominalSetting).toLocaleString('id-ID')})!`,
+      text: `Berhasil mencatat pembayaran ${validMonths.length} bulan untuk ${selectedStudent.name} (Total: Rp ${(validMonths.length * nominalSetting).toLocaleString('id-ID')})!`,
     });
     setSelectedMonthsToPay([]);
     setTimeout(() => setMessage(null), 3500);
@@ -225,6 +250,11 @@ export const SyahriyahJQView: React.FC = () => {
 
   // Tandai Semua Siswa JQ Lunas Bulan Ini (Setoran Kolektif)
   const handleBulkPayMonth = (monthIndex: number, monthName: string) => {
+    if (monthIndex === 6) {
+      alert('Bulan Juli belum ada kegiatan mengaji (bebas syahriyah).');
+      return;
+    }
+
     const confirmBulk = window.confirm(
       `Tandai SEMUA siswa anggota JQ (${currentClass}) lunas untuk bulan ${monthName} dengan tanggal ${defaultPaymentDate}?`
     );
@@ -260,17 +290,109 @@ export const SyahriyahJQView: React.FC = () => {
     setTimeout(() => setMessage(null), 3500);
   };
 
-  // Statistik Keseluruhan Kelas
+  // Helper Menghitung Statistik Pembayaran Siswa
+  const getStudentStats = (studentId: string) => {
+    const paidRecords = activeMonths.filter((m) => {
+      const rec = (syahriyahJQRecords || []).find(
+        (r) => r.studentId === studentId && r.monthIndex === m.index
+      );
+      return !!rec && !!rec.paymentDate;
+    });
+
+    const countPaid = paidRecords.length;
+    const totalPaid = countPaid * nominalSetting;
+    const targetKewajiban = 11 * nominalSetting; // 11 bulan aktif (Juli libur)
+    const sisaTunggakan = Math.max(0, targetKewajiban - totalPaid);
+
+    return {
+      countPaid,
+      totalPaid,
+      targetKewajiban,
+      sisaTunggakan,
+      paidRecords,
+    };
+  };
+
+  // Generator Pesan WhatsApp untuk Pembayaran Syahriyah
+  const handleOpenWhatsAppMessage = (student: Student, specificMonthIndex?: number) => {
+    const studentStats = getStudentStats(student.id);
+
+    let specificMonthText = '';
+    if (specificMonthIndex !== undefined) {
+      const targetMonth = monthsAcademicOrder.find((m) => m.index === specificMonthIndex);
+      const rec = (syahriyahJQRecords || []).find(
+        (r) => r.studentId === student.id && r.monthIndex === specificMonthIndex
+      );
+      const payDateFormatted = rec?.paymentDate
+        ? rec.paymentDate.split('-').reverse().join('/')
+        : defaultPaymentDate.split('-').reverse().join('/');
+
+      specificMonthText =
+        `📌 *Rincian Setoran Kali Ini:*\n` +
+        `• Bulan: *${targetMonth?.name || ''}*\n` +
+        `• Nominal: *Rp ${nominalSetting.toLocaleString('id-ID')}*\n` +
+        `• Tanggal Setor: *${payDateFormatted}*\n` +
+        `• Status: *LUNAS ✅*\n\n`;
+    }
+
+    // Susun daftar bulan yang sudah lunas
+    const paidMonthNames = activeMonths
+      .filter((m) => {
+        const rec = (syahriyahJQRecords || []).find(
+          (r) => r.studentId === student.id && r.monthIndex === m.index
+        );
+        return !!rec && !!rec.paymentDate;
+      })
+      .map((m) => {
+        const rec = (syahriyahJQRecords || []).find(
+          (r) => r.studentId === student.id && r.monthIndex === m.index
+        );
+        const tgl = rec?.paymentDate ? rec.paymentDate.split('-').reverse().slice(0, 2).join('/') : '';
+        return `  ✓ ${m.name}${tgl ? ` (${tgl})` : ''}`;
+      });
+
+    const isAllPaid = studentStats.countPaid === 11;
+
+    const messageBody =
+      `*BUKTI SETORAN SYAHRIYAH JQ (JAM'IYYATUL QURRA')*\n` +
+      `*${schoolProfile.namaMadrasah.toUpperCase()}*\n` +
+      `Tahun Ajaran ${schoolProfile.tahunAjaran}\n\n` +
+      `Assalamu'alaikum Wr. Wb.\n` +
+      `Yth. Bapak/Ibu Wali Murid dari *${student.name}* (${currentClass}),\n\n` +
+      `Alhamdulillah, kami telah mencatat penerimaan Iuran Syahriyah JQ (Jam'iyyatul Qurra') ananda.\n\n` +
+      specificMonthText +
+      `📊 *Rekapitulasi Iuran Syahriyah JQ:*` +
+      `\n• Tarif Bulanan: Rp ${nominalSetting.toLocaleString('id-ID')}` +
+      `\n• Bulan Lunas: *${studentStats.countPaid} dari 11 bulan aktif*` +
+      `\n• Total Telah Disetor: *Rp ${studentStats.totalPaid.toLocaleString('id-ID')}*` +
+      `\n• Sisa Kewajiban: *${isAllPaid ? 'LUNAS 100% (Rp 0) 🎉' : `Rp ${studentStats.sisaTunggakan.toLocaleString('id-ID')}`}*` +
+      `\n\n📌 *Daftar Bulan yang Sudah Lunas:*` +
+      `\n${paidMonthNames.length > 0 ? paidMonthNames.join('\n') : '  (Belum ada)'}` +
+      `\n\n💡 *Catatan Khusus:*` +
+      `\n_Bulan Juli bebas syahriyah (belum ada kegiatan mengaji/libur awal tahun ajaran)._\n\n` +
+      `Terima kasih banyak atas perhatian dan dukungan Bapak/Ibu dalam program pembinaan tahsin & tahfidz Al-Qur'an ananda. Semoga ananda senantiasa istiqamah, berakhlak mulia, dan menjadi hafidz/hafidzah kebanggaan keluarga. Aamiin ya Rabbal 'Alamin.\n\n` +
+      `Wassalamu'alaikum Wr. Wb.\n` +
+      `*Pengampu JQ / Wali Kelas:*\n` +
+      `${currentUser?.name || 'Wali Kelas'}`;
+
+    setWaModalData({
+      student,
+      messageText: messageBody,
+    });
+  };
+
+  // Statistik Keseluruhan Kelas (11 Bulan Aktif)
   const stats = useMemo(() => {
     const activeJqStudents = myStudents.filter((s) => jqMembers[s.id] !== false);
     const totalActiveJq = activeJqStudents.length;
-    const targetSetoranTahun = totalActiveJq * 12 * nominalSetting;
+    // 11 Bulan Aktif (Bulan Juli Bebas Syahriyah)
+    const targetSetoranTahun = totalActiveJq * 11 * nominalSetting;
 
     let totalSetoranTerkumpul = 0;
     let totalBulanLunas = 0;
 
     activeJqStudents.forEach((st) => {
-      monthsAcademicOrder.forEach((m) => {
+      activeMonths.forEach((m) => {
         const rec = (syahriyahJQRecords || []).find(
           (r) => r.studentId === st.id && r.monthIndex === m.index && r.paymentDate
         );
@@ -293,7 +415,7 @@ export const SyahriyahJQView: React.FC = () => {
       sisaTunggakan,
       persentaseLunas,
     };
-  }, [myStudents, jqMembers, syahriyahJQRecords, monthsAcademicOrder, nominalSetting]);
+  }, [myStudents, jqMembers, syahriyahJQRecords, activeMonths, nominalSetting]);
 
   // Ekspor PDF Rekap
   const handleExportPdf = () => {
@@ -301,16 +423,18 @@ export const SyahriyahJQView: React.FC = () => {
       'REKAPITULASI IURAN SYAHRIYAH JAM’IYYATUL QURRA’ (JQ)',
       `MADRASAH IBTIDAIYAH NEGERI 1 PURBALINGGA — KELAS ${currentClass.toUpperCase()}`,
       `TAHUN AJARAN ${schoolProfile.tahunAjaran} — SEMESTER ${schoolProfile.semester.toUpperCase()}`,
+      'Catatan: Bulan Juli bebas syahriyah (belum ada kegiatan mengaji). Kewajiban dihitung 11 bulan aktif.',
     ];
 
-    const monthHeaders = monthsAcademicOrder.map((m) => m.short);
-    const headers = ['No', 'NISN', 'Nama Siswa', 'Status JQ', ...monthHeaders, 'Total Terbayar'];
+    const monthHeaders = monthsAcademicOrder.map((m) => (m.isExempt ? `${m.short} (Libur)` : m.short));
+    const headers = ['No', 'NISN', 'Nama Siswa', 'Status JQ', ...monthHeaders, 'Lunas', 'Total Terbayar'];
 
     const rows = myStudents.map((st, idx) => {
       const isMember = jqMembers[st.id] !== false;
       let lunasCount = 0;
 
       const monthCols = monthsAcademicOrder.map((m) => {
+        if (m.isExempt) return 'Libur';
         if (!isMember) return '-';
         const rec = (syahriyahJQRecords || []).find(
           (r) => r.studentId === st.id && r.monthIndex === m.index
@@ -328,12 +452,13 @@ export const SyahriyahJQView: React.FC = () => {
         st.name,
         isMember ? 'Peserta' : 'Bukan JQ',
         ...monthCols,
+        isMember ? `${lunasCount}/11` : '0/0',
         `Rp ${(lunasCount * nominalSetting).toLocaleString('id-ID')}`,
       ];
     });
 
     exportToPdf({
-      filename: `Rekap_Syahriyah_JQ_${currentClass.replace(' ', '_')}`,
+      filename: `Rekap_Syahriyah_JQ_${currentClass.replace(/\s+/g, '_')}`,
       titleLines,
       tableHeaders: headers,
       tableRows: rows,
@@ -357,17 +482,18 @@ export const SyahriyahJQView: React.FC = () => {
       'REKAPITULASI SYAHRIYAH JAM’IYYATUL QURRA’ (JQ)',
       `KELAS: ${currentClass}`,
       `SEMESTER: ${schoolProfile.semester} TAHUN AJARAN ${schoolProfile.tahunAjaran}`,
-      `TARIF: Rp ${nominalSetting.toLocaleString('id-ID')} / bulan`,
+      `TARIF: Rp ${nominalSetting.toLocaleString('id-ID')} / bulan (11 Bulan Aktif, Juli Libur/Bebas)`,
     ];
 
-    const monthHeaders = monthsAcademicOrder.map((m) => m.name);
-    const headers = ['No', 'NISN', 'Nama Siswa', 'Status Anggota', ...monthHeaders, 'Total Setoran (Rp)'];
+    const monthHeaders = monthsAcademicOrder.map((m) => (m.isExempt ? `${m.name} (Libur)` : m.name));
+    const headers = ['No', 'NISN', 'Nama Siswa', 'Status Anggota', ...monthHeaders, 'Bulan Lunas', 'Total Setoran (Rp)'];
 
     const rows = myStudents.map((st, idx) => {
       const isMember = jqMembers[st.id] !== false;
       let lunasCount = 0;
 
       const monthCols = monthsAcademicOrder.map((m) => {
+        if (m.isExempt) return 'Libur (Bebas)';
         if (!isMember) return 'Bukan Peserta';
         const rec = (syahriyahJQRecords || []).find(
           (r) => r.studentId === st.id && r.monthIndex === m.index
@@ -385,12 +511,13 @@ export const SyahriyahJQView: React.FC = () => {
         st.name,
         isMember ? 'Peserta JQ' : 'Bukan Peserta',
         ...monthCols,
+        isMember ? `${lunasCount}/11` : 0,
         lunasCount * nominalSetting,
       ];
     });
 
     exportToExcel(
-      `Syahriyah_JQ_${currentClass.replace(' ', '_')}`,
+      `Rekap_Syahriyah_JQ_${currentClass.replace(/\s+/g, '_')}`,
       'Syahriyah JQ',
       headerLines,
       headers,
@@ -400,44 +527,44 @@ export const SyahriyahJQView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & Navigation */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shadow-xs">
+      {/* Header View & Quick Settings */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-500 text-white flex items-center justify-center font-bold shadow-md shadow-amber-600/20">
               <Coins className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-800">
-                  Syahriyah Jam'iyyatul Qurra' / JQ ({currentClass})
-                </h2>
-                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-extrabold rounded-full uppercase">
-                  Modul Praktis v2
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">Iuran Syahriyah JQ</h2>
+                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[11px] font-black rounded-full uppercase tracking-wider">
+                  {currentClass}
+                </span>
+                <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 text-[11px] font-bold rounded-full">
+                  11 Bulan Aktif (Juli Libur)
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Pencatatan setoran cepat bulanan, loket kasir per siswa, dan tanda terima setoran ke pembina JQ
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pengelolaan syahriyah ekstrakurikuler Jam’iyyatul Qurra’ (tahsin & tahfidz) dengan notifikasi WhatsApp resmi.
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-100/80 rounded-xl text-xs border border-slate-200/60">
               <Printer className="w-3.5 h-3.5 text-slate-500" />
-              <span className="font-medium text-slate-600">Tgl Cetak:</span>
+              <span className="font-semibold text-slate-600">Cetak:</span>
               <input
                 type="date"
                 value={printDate}
                 onChange={(e) => setPrintDate(e.target.value)}
-                className="bg-transparent font-semibold text-slate-800 focus:outline-none"
+                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
               />
             </div>
 
             <button
               onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200/80 font-bold text-xs rounded-xl transition-colors cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-teal-600" />
               Excel
@@ -445,58 +572,19 @@ export const SyahriyahJQView: React.FC = () => {
 
             <button
               onClick={handleExportPdf}
-              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200/80 font-bold text-xs rounded-xl transition-colors cursor-pointer"
             >
               <FileText className="w-4 h-4 text-rose-600" />
-              PDF Rekap
+              Cetak PDF
             </button>
           </div>
         </div>
 
-        {/* Global Class Stats Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-1">
-          <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl">
-            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
-              Peserta JQ Aktif
-            </span>
-            <span className="text-lg font-black text-amber-950">
-              {stats.totalActiveJq} <span className="text-xs font-normal text-amber-700">/ {stats.totalStudents} siswa</span>
-            </span>
-          </div>
-
-          <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-xl">
-            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-              Total Kas Terkumpul
-            </span>
-            <span className="text-lg font-black text-emerald-950">
-              Rp {stats.totalSetoranTerkumpul.toLocaleString('id-ID')}
-            </span>
-          </div>
-
-          <div className="p-3 bg-sky-50/70 border border-sky-200/80 rounded-xl">
-            <span className="text-[10px] font-bold text-sky-800 uppercase tracking-wider block">
-              Persentase Pelunasan
-            </span>
-            <span className="text-lg font-black text-sky-950">
-              {stats.persentaseLunas.toFixed(1)}%
-            </span>
-          </div>
-
-          <div className="p-3 bg-purple-50/70 border border-purple-200/80 rounded-xl">
-            <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">
-              Tarif Bulanan
-            </span>
-            <span className="text-lg font-black text-purple-950">
-              Rp {nominalSetting.toLocaleString('id-ID')}
-            </span>
-          </div>
-        </div>
-
-        {/* Settings Bar */}
-        <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+        {/* Setting Tarif & Tanggal Default & Pemberitahuan Juli */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1 text-xs">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <label className="font-bold text-slate-700">Tarif / Bulan:</label>
+              <label className="font-bold text-slate-700">Tarif Bulanan:</label>
               <div className="flex items-center gap-1">
                 <span className="text-slate-400 font-semibold">Rp</span>
                 <input
@@ -526,10 +614,15 @@ export const SyahriyahJQView: React.FC = () => {
               <span className="text-[10px] text-slate-400">(Digunakan saat klik lunas)</span>
             </div>
           </div>
+
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 border border-sky-200 rounded-xl text-sky-800 text-[11px] font-medium">
+            <Info className="w-4 h-4 text-sky-600 shrink-0" />
+            <span>Bulan <strong>Juli bebas syahriyah</strong> (belum ada kegiatan mengaji).</span>
+          </div>
         </div>
 
         {message && (
-          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs flex items-center gap-2 font-semibold">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs flex items-center gap-2 font-semibold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             {message.text}
           </div>
@@ -600,18 +693,11 @@ export const SyahriyahJQView: React.FC = () => {
             </div>
 
             {/* Student List */}
-            <div className="max-h-[520px] overflow-y-auto space-y-1.5 pr-1">
-              {filteredStudents.map((st, idx) => {
-                const isSelected = st.id === selectedStudent?.id;
-                const isJqMember = jqMembers[st.id] !== false;
-
-                // Count paid months
-                const paidCount = monthsAcademicOrder.filter((m) => {
-                  const rec = (syahriyahJQRecords || []).find(
-                    (r) => r.studentId === st.id && r.monthIndex === m.index
-                  );
-                  return !!rec && !!rec.paymentDate;
-                }).length;
+            <div className="space-y-1.5 max-h-[560px] overflow-y-auto pr-1">
+              {filteredStudents.map((st) => {
+                const isSelected = st.id === selectedStudentId;
+                const isMember = jqMembers[st.id] !== false;
+                const stStats = getStudentStats(st.id);
 
                 return (
                   <button
@@ -622,42 +708,35 @@ export const SyahriyahJQView: React.FC = () => {
                     }}
                     className={`w-full p-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer border ${
                       isSelected
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
-                        : 'bg-slate-50/70 hover:bg-slate-100 text-slate-800 border-slate-200/80'
+                        ? 'bg-amber-500 text-white font-bold border-amber-600 shadow-xs'
+                        : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/70'
                     }`}
                   >
-                    <div className="space-y-0.5 truncate flex-1">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className={`text-[10px] font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
-                          #{idx + 1}
-                        </span>
-                        <span className="font-bold text-xs truncate block">{st.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px]">
-                        <span className={isSelected ? 'text-amber-100 font-mono' : 'text-slate-500 font-mono'}>
-                          {st.nisn}
-                        </span>
-                        {!isJqMember && (
-                          <span className={`px-1.5 py-0.2 rounded font-extrabold text-[9px] ${
-                            isSelected ? 'bg-red-400 text-white' : 'bg-red-100 text-red-700'
-                          }`}>
+                        <span className="truncate text-xs font-bold">{st.name}</span>
+                        {!isMember && (
+                          <span className={`text-[9px] px-1 rounded ${isSelected ? 'bg-amber-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                             Bukan JQ
                           </span>
                         )}
                       </div>
+                      <span className={`text-[10px] block ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                        NISN: {st.nisn}
+                      </span>
                     </div>
 
                     <div className="text-right shrink-0">
                       <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
                         isSelected
-                          ? 'bg-amber-600 text-white'
-                          : paidCount === 12
+                          ? 'bg-amber-700 text-white'
+                          : stStats.countPaid === 11
                           ? 'bg-emerald-100 text-emerald-800'
-                          : paidCount > 0
+                          : stStats.countPaid > 0
                           ? 'bg-amber-100 text-amber-800'
                           : 'bg-slate-200 text-slate-600'
                       }`}>
-                        {paidCount}/12 Bln
+                        {stStats.countPaid}/11 Bln
                       </span>
                     </div>
                   </button>
@@ -682,11 +761,16 @@ export const SyahriyahJQView: React.FC = () => {
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Kelas: {currentClass} • Wali Kelas: {currentUser?.name || '-'}
+                        {selectedStudent.parentWa && (
+                          <span className="ml-2 font-medium text-emerald-700 font-mono">
+                            WA: {selectedStudent.parentWa}
+                          </span>
+                        )}
                       </p>
                     </div>
 
-                    {/* Member Switch & Print Slip Button */}
-                    <div className="flex items-center gap-2">
+                    {/* Member Switch, Kirim WA & Print Slip Button */}
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handleToggleJqMembership(selectedStudent.id)}
                         className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border ${
@@ -709,6 +793,16 @@ export const SyahriyahJQView: React.FC = () => {
                         )}
                       </button>
 
+                      {/* Tombol Kirim WhatsApp */}
+                      <button
+                        onClick={() => handleOpenWhatsAppMessage(selectedStudent)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                        title="Kirim Laporan & Tanda Terima ke WhatsApp Wali Murid"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Kirim WA</span>
+                      </button>
+
                       <button
                         onClick={() =>
                           setStudentCardToPrint({
@@ -727,35 +821,29 @@ export const SyahriyahJQView: React.FC = () => {
 
                   {/* Student Summary Chips */}
                   {(() => {
-                    const studentPaidRecords = monthsAcademicOrder.filter((m) => {
-                      const rec = (syahriyahJQRecords || []).find(
-                        (r) => r.studentId === selectedStudent.id && r.monthIndex === m.index
-                      );
-                      return !!rec && !!rec.paymentDate;
-                    });
-                    const countPaid = studentPaidRecords.length;
-                    const totalPaid = countPaid * nominalSetting;
-                    const sisaTunggakan = Math.max(0, 12 * nominalSetting - totalPaid);
+                    const stStats = getStudentStats(selectedStudent.id);
 
                     return (
-                      <div className="grid grid-cols-3 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                           <span className="text-[10px] text-slate-500 block font-semibold">Status Pelunasan</span>
                           <span className="text-sm font-extrabold text-slate-800">
-                            {countPaid} / 12 Bulan Lunas
+                            {stStats.countPaid} / 11 Bulan Aktif Lunas
                           </span>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
                           <span className="text-[10px] text-emerald-700 block font-semibold">Total Terbayar</span>
                           <span className="text-sm font-black text-emerald-900">
-                            Rp {totalPaid.toLocaleString('id-ID')}
+                            Rp {stStats.totalPaid.toLocaleString('id-ID')}
                           </span>
                         </div>
                         <div className="p-3 bg-rose-50 rounded-xl border border-rose-200">
-                          <span className="text-[10px] text-rose-700 block font-semibold">Sisa Tagihan</span>
+                          <span className="text-[10px] text-rose-700 block font-semibold">Sisa Kewajiban</span>
                           <span className="text-sm font-black text-rose-900">
                             {jqMembers[selectedStudent.id] !== false
-                              ? `Rp ${sisaTunggakan.toLocaleString('id-ID')}`
+                              ? stStats.countPaid === 11
+                                ? 'LUNAS (Rp 0)'
+                                : `Rp ${stStats.sisaTunggakan.toLocaleString('id-ID')}`
                               : 'Rp 0 (Bukan JQ)'}
                           </span>
                         </div>
@@ -770,10 +858,10 @@ export const SyahriyahJQView: React.FC = () => {
                     <div>
                       <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
                         <Calendar className="w-4 h-4 text-amber-600" />
-                        Kartu Status Pembayaran 12 Bulan (Tahun Ajaran {schoolProfile.tahunAjaran})
+                        Kartu Status Pembayaran (Tahun Ajaran {schoolProfile.tahunAjaran})
                       </h4>
                       <p className="text-[11px] text-slate-500">
-                        Klik langsung pada kartu bulan untuk menandai <strong>Lunas</strong> atau <strong>Batal</strong>.
+                        Klik pada kartu bulan untuk menandai <strong>Lunas</strong> atau <strong>Batal</strong>. <em>Bulan Juli bebas syahriyah (belum ada kegiatan).</em>
                       </p>
                     </div>
 
@@ -795,6 +883,35 @@ export const SyahriyahJQView: React.FC = () => {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {monthsAcademicOrder.map((m) => {
+                      // KASUS BULAN JULI (LIBUR / BEBAS SYAHRIYAH)
+                      if (m.isExempt) {
+                        return (
+                          <div
+                            key={m.index}
+                            className="p-3 rounded-2xl border border-dashed border-sky-300 bg-sky-50/50 flex flex-col justify-between"
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-extrabold text-sky-600">Bln 1</span>
+                                <h5 className="font-extrabold text-sky-950 text-sm">{m.name}</h5>
+                              </div>
+                              <div className="mt-2 space-y-1">
+                                <span className="inline-block px-2 py-0.5 rounded-full bg-sky-200 text-sky-900 text-[10px] font-black">
+                                  BEBAS SYAHRIYAH
+                                </span>
+                                <p className="text-[10px] text-sky-700 leading-tight">
+                                  Belum ada kegiatan mengaji.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-3 pt-2 border-t border-sky-200/60 text-center">
+                              <span className="text-[10px] text-sky-600 font-semibold italic">Tidak Dipungut Biaya</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // BULAN-BULAN AKTIF LAINNYA
                       const rec = (syahriyahJQRecords || []).find(
                         (r) => r.studentId === selectedStudent.id && r.monthIndex === m.index
                       );
@@ -870,20 +987,29 @@ export const SyahriyahJQView: React.FC = () => {
                           <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between gap-1">
                             {isPaid ? (
                               <>
-                                <button
-                                  onClick={() =>
-                                    setEditingPayment({
-                                      studentId: selectedStudent.id,
-                                      studentName: selectedStudent.name,
-                                      monthIndex: m.index,
-                                      monthName: m.name,
-                                      currentDate: rec.paymentDate || defaultPaymentDate,
-                                    })
-                                  }
-                                  className="text-[10px] text-slate-500 hover:text-slate-800 font-semibold cursor-pointer underline"
-                                >
-                                  Ubah Tgl
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() =>
+                                      setEditingPayment({
+                                        studentId: selectedStudent.id,
+                                        studentName: selectedStudent.name,
+                                        monthIndex: m.index,
+                                        monthName: m.name,
+                                        currentDate: rec.paymentDate || defaultPaymentDate,
+                                      })
+                                    }
+                                    className="text-[10px] text-slate-500 hover:text-slate-800 font-semibold cursor-pointer underline"
+                                  >
+                                    Ubah
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenWhatsAppMessage(selectedStudent, m.index)}
+                                    className="p-1 text-emerald-700 hover:bg-emerald-100 rounded-md transition-colors"
+                                    title="Kirim Bukti WA Bulan Ini"
+                                  >
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                                 <button
                                   onClick={() => handleToggleMonthPayment(selectedStudent.id, m.index)}
                                   className="text-[10px] text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
@@ -926,18 +1052,22 @@ export const SyahriyahJQView: React.FC = () => {
                 Matriks Rekapitulasi Syahriyah JQ Kelas ({currentClass})
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Cukup klik 1 kali pada kotak bulan untuk menandai <strong>Lunas</strong> atau <strong>Batal</strong>. Tanggal otomatis tersimpan.
+                Cukup klik 1 kali pada kotak bulan untuk menandai <strong>Lunas</strong> atau <strong>Batal</strong>. <em>Bulan Juli bebas syahriyah (belum ada mengaji).</em>
               </p>
             </div>
 
             <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
               <span className="flex items-center gap-1.5">
                 <span className="w-3.5 h-3.5 rounded bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">✓</span>
-                Lunas (Klik untuk batal/ubah)
+                Lunas
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-3.5 h-3.5 rounded bg-slate-100 border border-slate-300"></span>
-                Belum Bayar (Klik untuk lunasi)
+                Belum Bayar
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded bg-sky-100 text-sky-800 border border-sky-300 flex items-center justify-center text-[8px] font-bold">L</span>
+                Juli (Libur)
               </span>
             </div>
           </div>
@@ -949,28 +1079,38 @@ export const SyahriyahJQView: React.FC = () => {
                   <th className="p-2.5 w-10 text-center" rowSpan={2}>No</th>
                   <th className="p-2.5 w-24" rowSpan={2}>NISN</th>
                   <th className="p-2.5 min-w-[160px]" rowSpan={2}>Nama Lengkap Siswa</th>
-                  <th className="p-2.5 w-24 text-center" rowSpan={2}>Status JQ</th>
+                  <th className="p-2.5 w-20 text-center" rowSpan={2}>Status</th>
                   <th
                     className="p-2 text-center bg-amber-100/70 text-amber-950 font-extrabold border-b border-slate-200 uppercase tracking-wider"
                     colSpan={12}
                   >
-                    12 BULAN (KLIK UNTUK BAYAR/BATAL)
+                    11 BULAN AKTIF (JULI LIBUR / BEBAS SYAHRIYAH)
                   </th>
-                  <th className="p-2.5 text-right w-24" rowSpan={2}>Lunas</th>
+                  <th className="p-2.5 text-right w-20" rowSpan={2}>Lunas</th>
                   <th className="p-2.5 text-right w-28" rowSpan={2}>Total Setor</th>
+                  <th className="p-2.5 text-center w-14" rowSpan={2}>WA</th>
                 </tr>
                 <tr className="bg-slate-50 text-slate-700 font-semibold text-[11px]">
                   {monthsAcademicOrder.map((m) => (
-                    <th key={m.index} className="p-1.5 text-center border-r border-slate-200">
+                    <th
+                      key={m.index}
+                      className={`p-1.5 text-center border-r border-slate-200 ${
+                        m.isExempt ? 'bg-sky-50 text-sky-900 font-black' : ''
+                      }`}
+                    >
                       <div className="flex flex-col items-center">
                         <span>{m.short}</span>
-                        <button
-                          onClick={() => handleBulkPayMonth(m.index, m.name)}
-                          className="text-[9px] text-amber-700 hover:text-amber-900 font-bold underline cursor-pointer"
-                          title={`Tandai semua anggota JQ lunas bulan ${m.name}`}
-                        >
-                          Semua
-                        </button>
+                        {m.isExempt ? (
+                          <span className="text-[9px] text-sky-700 font-extrabold">Libur</span>
+                        ) : (
+                          <button
+                            onClick={() => handleBulkPayMonth(m.index, m.name)}
+                            className="text-[9px] text-amber-700 hover:text-amber-900 font-bold underline cursor-pointer"
+                            title={`Tandai semua anggota JQ lunas bulan ${m.name}`}
+                          >
+                            Semua
+                          </button>
+                        )}
                       </div>
                     </th>
                   ))}
@@ -1019,6 +1159,21 @@ export const SyahriyahJQView: React.FC = () => {
 
                       {/* 12 Months Interactive Cells */}
                       {monthsAcademicOrder.map((m) => {
+                        // KASUS BULAN JULI (LIBUR / BEBAS)
+                        if (m.isExempt) {
+                          return (
+                            <td
+                              key={m.index}
+                              className="p-1 text-center border-r border-slate-100 bg-sky-50/30"
+                              title="Bulan Juli bebas syahriyah (belum ada kegiatan mengaji)"
+                            >
+                              <span className="inline-block px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[9px] font-extrabold">
+                                Libur
+                              </span>
+                            </td>
+                          );
+                        }
+
                         const rec = (syahriyahJQRecords || []).find(
                           (r) => r.studentId === st.id && r.monthIndex === m.index
                         );
@@ -1047,7 +1202,7 @@ export const SyahriyahJQView: React.FC = () => {
                                   currentDate: rec?.paymentDate || defaultPaymentDate,
                                 });
                               }}
-                              className={`w-8 h-8 rounded-xl font-black text-xs transition-all inline-flex flex-col items-center justify-center cursor-pointer shadow-2xs ${
+                              className={`w-7 h-7 rounded-lg font-black text-xs transition-all inline-flex flex-col items-center justify-center cursor-pointer shadow-2xs ${
                                 isPaid
                                   ? 'bg-emerald-500 hover:bg-emerald-600 text-white scale-100'
                                   : 'bg-slate-100 hover:bg-amber-100 text-slate-400 hover:text-amber-800 border border-slate-200'
@@ -1058,18 +1213,27 @@ export const SyahriyahJQView: React.FC = () => {
                                   : `Belum bayar. Klik untuk tandai Lunas tgl ${defaultPaymentDate}`
                               }
                             >
-                              {isPaid ? <Check className="w-4 h-4 stroke-[3]" /> : '—'}
+                              {isPaid ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : '—'}
                             </button>
                           </td>
                         );
                       })}
 
-                      {/* Summary Columns */}
+                      {/* Summary Columns: Lunas dari 11 Bulan Aktif */}
                       <td className="p-2.5 text-right font-bold text-slate-700">
-                        {isMember ? `${paidMonthsCount}/12` : '0/0'}
+                        {isMember ? `${paidMonthsCount}/11` : '0/0'}
                       </td>
                       <td className="p-2.5 text-right font-black text-emerald-800 bg-emerald-50/40">
                         Rp {(paidMonthsCount * nominalSetting).toLocaleString('id-ID')}
+                      </td>
+                      <td className="p-2.5 text-center">
+                        <button
+                          onClick={() => handleOpenWhatsAppMessage(st)}
+                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                          title="Kirim Ringkasan WA ke Wali Murid"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1090,7 +1254,7 @@ export const SyahriyahJQView: React.FC = () => {
                 Laporan & Berita Acara Penyerahan Kas ke Pembina JQ
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Rekapitulasi total kas syahriyah yang ditarik oleh Wali Kelas {currentClass} untuk disetorkan ke Koordinator/Pembina JQ Madrasah
+                Rekapitulasi total kas syahriyah yang ditarik oleh Wali Kelas {currentClass} untuk disetorkan ke Koordinator/Pembina JQ Madrasah (11 bulan aktif).
               </p>
             </div>
 
@@ -1108,6 +1272,29 @@ export const SyahriyahJQView: React.FC = () => {
           {/* Month by Month Collection Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {monthsAcademicOrder.map((m) => {
+              // Jika Juli, tampilkan kartu keterangan libur
+              if (m.isExempt) {
+                return (
+                  <div
+                    key={m.index}
+                    className="p-4 rounded-xl border border-dashed border-sky-300 bg-sky-50/50 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-sm text-sky-950">Bulan {m.name}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-200 text-sky-900">
+                        Bebas Syahriyah
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-1">
+                      <span className="text-xs text-sky-700">Keterangan:</span>
+                      <span className="text-xs font-bold text-sky-800">
+                        Belum ada kegiatan mengaji
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
               const activeJqStudents = myStudents.filter((s) => jqMembers[s.id] !== false);
               const paidInMonth = activeJqStudents.filter((st) => {
                 const rec = (syahriyahJQRecords || []).find(
@@ -1160,7 +1347,7 @@ export const SyahriyahJQView: React.FC = () => {
                 Rp {stats.totalSetoranTerkumpul.toLocaleString('id-ID')}
               </div>
               <p className="text-xs text-slate-400">
-                Dari {stats.totalBulanLunas} transaksi pembayaran bulan oleh {stats.totalActiveJq} siswa anggota JQ.
+                Dari {stats.totalBulanLunas} transaksi pembayaran bulan oleh {stats.totalActiveJq} siswa anggota JQ (11 bulan aktif).
               </p>
             </div>
 
@@ -1172,6 +1359,89 @@ export const SyahriyahJQView: React.FC = () => {
                 <Download className="w-4 h-4" />
                 Unduh PDF Laporan Resmi
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NOTIFIKASI TANDA TERIMA WHATSAPP */}
+      {waModalData && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <span className="font-extrabold text-xs text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4 text-emerald-600" />
+                Kirim Bukti Pembayaran Syahriyah JQ ke WhatsApp
+              </span>
+              <button
+                onClick={() => setWaModalData(null)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-700">Wali Murid Siswa:</span>
+                <span className="font-black text-slate-900">{waModalData.student.name}</span>
+              </div>
+
+              {waModalData.student.parentWa ? (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                  <span className="text-emerald-800 font-bold text-[11px]">
+                    Nomor WhatsApp Terdaftar: {waModalData.student.parentWa}
+                  </span>
+                  <span className="text-[10px] bg-emerald-200 text-emerald-900 font-extrabold px-2 py-0.5 rounded-full">
+                    Tersedia
+                  </span>
+                </div>
+              ) : (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-medium">
+                  Nomor WhatsApp belum terdaftar di data siswa. Anda dapat menyalin teks pesan ini dan mengirimkannya secara manual.
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Isi Pesan WhatsApp:
+                </label>
+                <textarea
+                  rows={9}
+                  readOnly
+                  value={waModalData.messageText}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-800 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(waModalData.messageText);
+                    setMessage({ type: 'success', text: 'Teks pesan WhatsApp berhasil disalin ke clipboard!' });
+                    setTimeout(() => setMessage(null), 3000);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl cursor-pointer"
+                >
+                  <Copy className="w-4 h-4 text-slate-600" />
+                  Salin Teks
+                </button>
+
+                {waModalData.student.parentWa && (
+                  <a
+                    href={`https://wa.me/${waModalData.student.parentWa.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                      waModalData.messageText
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs cursor-pointer transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Buka WhatsApp
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1262,6 +1532,9 @@ export const SyahriyahJQView: React.FC = () => {
                 <p className="text-[11px] text-slate-600">
                   {schoolProfile.namaMadrasah} • Tahun Ajaran {schoolProfile.tahunAjaran}
                 </p>
+                <p className="text-[10px] text-amber-800 font-semibold mt-0.5">
+                  (11 Bulan Aktif • Bulan Juli Bebas Syahriyah)
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1277,6 +1550,18 @@ export const SyahriyahJQView: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-2 pt-1">
                 {monthsAcademicOrder.map((m) => {
+                  if (m.isExempt) {
+                    return (
+                      <div
+                        key={m.index}
+                        className="p-2 rounded-xl border border-sky-300 bg-sky-50 text-center"
+                      >
+                        <span className="font-bold text-[10px] block text-sky-800">{m.name}</span>
+                        <span className="text-[9px] font-extrabold text-sky-700 block">Libur JQ</span>
+                      </div>
+                    );
+                  }
+
                   const rec = (syahriyahJQRecords || []).find(
                     (r) => r.studentId === studentCardToPrint.studentId && r.monthIndex === m.index
                   );
@@ -1303,7 +1588,7 @@ export const SyahriyahJQView: React.FC = () => {
               </div>
 
               <div className="text-[10px] text-slate-500 text-center pt-2 border-t border-amber-200">
-                Tarif: Rp {nominalSetting.toLocaleString('id-ID')} / bulan • Tanda tangan Wali Kelas: ____________
+                Tarif: Rp {nominalSetting.toLocaleString('id-ID')} / bulan (11 Bulan) • Tanda tangan Wali Kelas: ____________
               </div>
             </div>
 

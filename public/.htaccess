@@ -1,9 +1,21 @@
-# Force MIME Types & CORS for JavaScript (ES Modules) and CSS on Apache/LiteSpeed
+# =======================================================================
+# KAGUM - .htaccess untuk Apache / LiteSpeed Web Server
+# MIN 1 Purbalingga (https://kagum.min1purbalingga.sch.id)
+# =======================================================================
+
+# 1. Pastikan web server selalu memprioritaskan index.php & index.html
+DirectoryIndex index.php index.html
+
+# 2. Matikan directory indexing (mencegah munculnya tampilan "Index of /")
+Options -Indexes +FollowSymLinks
+
+# 3. Force MIME Types & CORS for JavaScript (ES Modules), CSS, and Assets
 <IfModule mod_mime.c>
   AddType application/javascript .js .mjs
   AddType text/css .css
   AddType image/svg+xml .svg
   AddType application/zip .zip
+  AddType application/json .json
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -12,27 +24,26 @@
   </FilesMatch>
 </IfModule>
 
+# 4. URL Rewriting untuk Single Page Application (SPA)
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  RewriteBase /
 
-  # Jika folder diakses tanpa akhiran slash '/', redirect tambahkan '/'
-  RewriteCond %{REQUEST_FILENAME} -d
-  RewriteRule ^(.*[^/])$ $1/ [L,R=301]
+  # Jika mengakses root domain "/", layani index.php / index.html langsung
+  RewriteRule ^$ index.php [L]
 
-  # Jangan rewrite jika file atau folder fisik ada (seperti assets, api.php, favicon, logo, dll)
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
+  # Biarkan file fisik yang benar-benar ada diakses langsung (api.php, index.php, favicon, css, js, dll)
+  RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # Akses langsung untuk api.php, update.php, dan schema.sql
-  RewriteRule ^api\.php$ - [L]
-  RewriteRule ^update\.php$ - [L]
-  RewriteRule ^schema\.sql$ - [L]
+  # Biarkan folder assets diakses langsung
+  RewriteCond %{REQUEST_URI} ^/assets/
+  RewriteRule ^ - [L]
 
-  # Jangan alihkan file .zip ke index.html jika tidak ada di disk (return HTTP 404 murni)
+  # Jangan alihkan file .zip ke index jika tidak ada di disk (return HTTP 404 murni)
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteRule \.zip$ - [R=404,L]
 
-  # Alihkan semua URL route Single Page Application ke index.html
+  # Alihkan semua URL route aplikasi ke index.html (SPA client routing)
   RewriteRule ^ index.html [L]
 </IfModule>
