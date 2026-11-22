@@ -74,39 +74,56 @@ export const AbsensiSiswaView: React.FC = () => {
     setTimeout(() => setMessage(''), 3000);
   };
 
-  const handleExportPdf = () => {
+  // Helper to compute attendance report data for PDF, Excel, and preview
+  const getAttendanceReportData = () => {
     const daysInMonth = getDaysInMonth(monthYear, selectedMonth);
+    const effectiveDaysCount = monthEff.effectiveDays > 0 ? monthEff.effectiveDays : daysInMonth;
 
-    const titleLines = [
-      'REKAPITULASI ABSENSI SISWA',
-      `KELAS ${currentClass.toUpperCase()}`,
-      `BULAN ${INDONESIAN_MONTH_NAMES[selectedMonth].toUpperCase()} ${monthYear}`,
-      `TAHUN AJARAN ${schoolProfile.tahunAjaran}`,
-    ];
+    // Ambil tanggal lokal hari ini (YYYY-MM-DD)
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    const customHead = [
-      [
-        { content: 'No.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'NISN', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'Nama Siswa', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'Tanggal', colSpan: daysInMonth, styles: { halign: 'center', valign: 'middle' } },
-        { content: 'Jumlah', colSpan: 4, styles: { halign: 'center', valign: 'middle' } },
-        { content: '% Kehadiran', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-      ],
-      [
-        ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)),
-        'H',
-        'S',
-        'I',
-        'A',
-      ],
-    ];
+    // 1. Hitung hari efektif yang sudah berjalan (elapsed) di bulan ini
+    let elapsedEffectiveDays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayStr = String(d).padStart(2, '0');
+      const monthStr = String(selectedMonth + 1).padStart(2, '0');
+      const dateFormatted = `${monthYear}-${monthStr}-${dayStr}`;
+
+      const dateObj = new Date(monthYear, selectedMonth, d);
+      const isSunday = dateObj.getDay() === 0;
+
+      const holidayEvt = (calendarEvents || []).find(
+        (e) => e && e.type === 'libur' && isDateInEventRange(dateFormatted, e)
+      );
+      const agendaEvt = (calendarEvents || []).find(
+        (e) => e && e.type === 'agenda' && isDateInEventRange(dateFormatted, e)
+      );
+
+      const isNonEffective = isSunday || !!holidayEvt || !!agendaEvt;
+
+      if (!isNonEffective) {
+        // Tanggal dianggap belum berjalan jika di masa depan dibanding hari ini / tanggal cetak
+        const isFuture = dateFormatted > todayStr || (printDate && dateFormatted > printDate);
+        const isTodayDate = dateFormatted === todayStr;
+        const hasTodayRecord = isTodayDate && (attendanceRecords || []).some(
+          (r) => r && r.kelas === currentClass && r.date === dateFormatted
+        );
+
+        if (!isFuture && (!isTodayDate || hasTodayRecord)) {
+          elapsedEffectiveDays++;
+        }
+      }
+    }
 
     let totalSakitAll = 0;
     let totalIzinAll = 0;
     let totalAlfaAll = 0;
 
-    const effectiveDaysCount = monthEff.effectiveDays > 0 ? monthEff.effectiveDays : daysInMonth;
+    // Pembagi persentase kehadiran: gunakan hari efektif berjalan jika di tengah bulan berjalan
+    const divisorDays = elapsedEffectiveDays > 0
+      ? elapsedEffectiveDays
+      : (effectiveDaysCount > 0 ? effectiveDaysCount : daysInMonth);
 
     const rows = myStudents.map((st, idx) => {
       let hCount = 0;
@@ -137,27 +154,38 @@ export const AbsensiSiswaView: React.FC = () => {
           (r) => r && r.studentId === st.id && r.date === dateFormatted
         );
 
-        if (rec) {
+        const isFuture = dateFormatted > todayStr || (printDate && dateFormatted > printDate);
+        const isTodayDate = dateFormatted === todayStr;
+
+        if (isNonEffective) {
+          // Hari tidak efektif (Minggu, Libur Kalender, Agenda) selalu diberi simbol '-'
+          dateCells.push('-');
+        } else if (rec) {
+          // Data absensi tercatat riil oleh guru
           if (rec.status === 'Hadir') {
             dateCells.push('.');
-            if (!isNonEffective) hCount++;
+            hCount++;
           } else if (rec.status === 'Sakit') {
             dateCells.push('S');
-            if (!isNonEffective) sCount++;
+            sCount++;
           } else if (rec.status === 'Izin') {
             dateCells.push('I');
-            if (!isNonEffective) iCount++;
+            iCount++;
           } else if (rec.status === 'Alfa') {
             dateCells.push('A');
-            if (!isNonEffective) aCount++;
+            aCount++;
           }
+        } else if (isFuture) {
+          // Tanggal di masa depan (belum terjadi): kosongkan (jangan diisi '.')
+          dateCells.push('');
+        } else if (isTodayDate) {
+          // Hari ini, namun guru belum menginput absensi: kosongkan sampai guru mengisi absensi
+          dateCells.push('');
         } else {
-          if (isNonEffective) {
-            dateCells.push('-');
-          } else {
-            dateCells.push('.');
-            hCount++;
-          }
+          // Hari efektif di masa lampau yang telah lewat tanpa catatan S/I/A:
+          // Siswa hadir mengikuti pembelajaran
+          dateCells.push('.');
+          hCount++;
         }
       }
 
@@ -165,8 +193,8 @@ export const AbsensiSiswaView: React.FC = () => {
       totalIzinAll += iCount;
       totalAlfaAll += aCount;
 
-      // Rumus: (Jumlah Hadir / Jumlah Hari Efektif) * 100%
-      const pctValue = effectiveDaysCount > 0 ? (hCount / effectiveDaysCount) * 100 : 0;
+      // Rumus: (Jumlah Hadir / Hari Efektif Berjalan) * 100%
+      const pctValue = divisorDays > 0 ? (hCount / divisorDays) * 100 : 0;
       const pct = Math.min(100, Math.round(pctValue));
 
       return [
@@ -181,6 +209,47 @@ export const AbsensiSiswaView: React.FC = () => {
         `${pct}%`,
       ];
     });
+
+    return {
+      daysInMonth,
+      effectiveDaysCount,
+      elapsedEffectiveDays,
+      divisorDays,
+      rows,
+      totalSakitAll,
+      totalIzinAll,
+      totalAlfaAll,
+    };
+  };
+
+  const handleExportPdf = () => {
+    const reportData = getAttendanceReportData();
+    const { daysInMonth, effectiveDaysCount, elapsedEffectiveDays, rows, totalSakitAll, totalIzinAll, totalAlfaAll } = reportData;
+
+    const titleLines = [
+      'REKAPITULASI ABSENSI SISWA',
+      `KELAS ${currentClass.toUpperCase()}`,
+      `BULAN ${INDONESIAN_MONTH_NAMES[selectedMonth].toUpperCase()} ${monthYear}`,
+      `TAHUN AJARAN ${schoolProfile.tahunAjaran}`,
+    ];
+
+    const customHead = [
+      [
+        { content: 'No.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'NISN', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Nama Siswa', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Tanggal', colSpan: daysInMonth, styles: { halign: 'center', valign: 'middle' } },
+        { content: 'Jumlah', colSpan: 4, styles: { halign: 'center', valign: 'middle' } },
+        { content: '% Kehadiran', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+      ],
+      [
+        ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)),
+        'H',
+        'S',
+        'I',
+        'A',
+      ],
+    ];
 
     // Column Styles & Sizing for A4 Landscape (297mm width)
     // Printable width with 10mm margins = 277mm
@@ -266,7 +335,8 @@ export const AbsensiSiswaView: React.FC = () => {
     };
 
     const totalStudentsCount = myStudents.length;
-    const totalAccumulatedEffDays = effectiveDaysCount * totalStudentsCount;
+    const baseEffectiveDays = elapsedEffectiveDays > 0 ? elapsedEffectiveDays : effectiveDaysCount;
+    const totalAccumulatedEffDays = baseEffectiveDays * totalStudentsCount;
 
     const pctSakit = totalAccumulatedEffDays > 0 ? ((totalSakitAll * 100) / totalAccumulatedEffDays).toFixed(2) : '0.00';
     const pctIzin  = totalAccumulatedEffDays > 0 ? ((totalIzinAll * 100) / totalAccumulatedEffDays).toFixed(2) : '0.00';
@@ -304,6 +374,11 @@ export const AbsensiSiswaView: React.FC = () => {
         doc.text('- Tidak ada hari libur nasional / khusus pada bulan ini', 12, currY);
         currY += 3.8;
       }
+
+      if (elapsedEffectiveDays > 0 && elapsedEffectiveDays < effectiveDaysCount) {
+        doc.text(`- Periode Laporan: Terhitung s.d. tanggal ${formatIndonesianDate(printDate)} (${elapsedEffectiveDays} dari ${effectiveDaysCount} hari efektif terlaksana)`, 12, currY);
+        currY += 3.8;
+      }
       currY += 2;
 
       // 2. PERSENTASE KETIDAKHADIRAN
@@ -316,21 +391,21 @@ export const AbsensiSiswaView: React.FC = () => {
       doc.setFontSize(7.5);
 
       doc.text(
-        `S = (Jml Ketidakhadiran Sakit x 100) / (Jml Hari Efektif x Jml Siswa) % = (${totalSakitAll} x 100) / (${effectiveDaysCount} x ${totalStudentsCount}) = ${pctSakit}%`,
+        `S = (Jml Ketidakhadiran Sakit x 100) / (Jml Hari Efektif Berjalan x Jml Siswa) % = (${totalSakitAll} x 100) / (${baseEffectiveDays} x ${totalStudentsCount}) = ${pctSakit}%`,
         12,
         currY
       );
       currY += 3.8;
 
       doc.text(
-        `I = (Jml Ketidakhadiran Izin x 100) / (Jml Hari Efektif x Jml Siswa) % = (${totalIzinAll} x 100) / (${effectiveDaysCount} x ${totalStudentsCount}) = ${pctIzin}%`,
+        `I = (Jml Ketidakhadiran Izin x 100) / (Jml Hari Efektif Berjalan x Jml Siswa) % = (${totalIzinAll} x 100) / (${baseEffectiveDays} x ${totalStudentsCount}) = ${pctIzin}%`,
         12,
         currY
       );
       currY += 3.8;
 
       doc.text(
-        `A = (Jml Ketidakhadiran Alfa x 100) / (Jml Hari Efektif x Jml Siswa) % = (${totalAlfaAll} x 100) / (${effectiveDaysCount} x ${totalStudentsCount}) = ${pctAlfa}%`,
+        `A = (Jml Ketidakhadiran Alfa x 100) / (Jml Hari Efektif Berjalan x Jml Siswa) % = (${totalAlfaAll} x 100) / (${baseEffectiveDays} x ${totalStudentsCount}) = ${pctAlfa}%`,
         12,
         currY
       );
@@ -360,7 +435,8 @@ export const AbsensiSiswaView: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    const daysInMonth = getDaysInMonth(monthYear, selectedMonth);
+    const reportData = getAttendanceReportData();
+    const { daysInMonth, rows } = reportData;
 
     const headerLines = [
       'REKAPITULASI PRESENSI ABSENSI SISWA',
@@ -381,78 +457,6 @@ export const AbsensiSiswaView: React.FC = () => {
       '% Kehadiran',
     ];
 
-    const effectiveDaysCount = monthEff.effectiveDays > 0 ? monthEff.effectiveDays : daysInMonth;
-
-    const rows = myStudents.map((st, idx) => {
-      let hCount = 0;
-      let sCount = 0;
-      let iCount = 0;
-      let aCount = 0;
-
-      const dateCells: string[] = [];
-
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dayStr = String(d).padStart(2, '0');
-        const monthStr = String(selectedMonth + 1).padStart(2, '0');
-        const dateFormatted = `${monthYear}-${monthStr}-${dayStr}`;
-
-        const dateObj = new Date(monthYear, selectedMonth, d);
-        const isSunday = dateObj.getDay() === 0;
-
-        const holidayEvt = (calendarEvents || []).find(
-          (e) => e && e.type === 'libur' && isDateInEventRange(dateFormatted, e)
-        );
-        const agendaEvt = (calendarEvents || []).find(
-          (e) => e && e.type === 'agenda' && isDateInEventRange(dateFormatted, e)
-        );
-
-        const isNonEffective = isSunday || !!holidayEvt || !!agendaEvt;
-
-        const rec = (attendanceRecords || []).find(
-          (r) => r && r.studentId === st.id && r.date === dateFormatted
-        );
-
-        if (rec) {
-          if (rec.status === 'Hadir') {
-            dateCells.push('.');
-            if (!isNonEffective) hCount++;
-          } else if (rec.status === 'Sakit') {
-            dateCells.push('S');
-            if (!isNonEffective) sCount++;
-          } else if (rec.status === 'Izin') {
-            dateCells.push('I');
-            if (!isNonEffective) iCount++;
-          } else if (rec.status === 'Alfa') {
-            dateCells.push('A');
-            if (!isNonEffective) aCount++;
-          }
-        } else {
-          if (isNonEffective) {
-            dateCells.push('-');
-          } else {
-            dateCells.push('.');
-            hCount++;
-          }
-        }
-      }
-
-      // Rumus: (Jumlah Hadir / Jumlah Hari Efektif) * 100%
-      const pctValue = effectiveDaysCount > 0 ? (hCount / effectiveDaysCount) * 100 : 0;
-      const pct = Math.min(100, Math.round(pctValue));
-
-      return [
-        idx + 1,
-        st.nisn,
-        st.name,
-        ...dateCells,
-        hCount,
-        sCount,
-        iCount,
-        aCount,
-        `${pct}%`,
-      ];
-    });
-
     exportToExcel(
       `Absensi_Siswa_${currentClass.replace(' ', '_')}_${selectedMonth + 1}`,
       'Absensi',
@@ -461,6 +465,8 @@ export const AbsensiSiswaView: React.FC = () => {
       rows
     );
   };
+
+  const reportData = getAttendanceReportData();
 
   return (
     <div className="space-y-6">
@@ -528,8 +534,13 @@ export const AbsensiSiswaView: React.FC = () => {
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-1">Hari Efektif Belajar</label>
-            <div className="px-3 py-1.5 border border-emerald-200 bg-emerald-50 text-emerald-800 font-extrabold rounded-lg">
-              {monthEff.effectiveDays} Hari Efektif
+            <div className="px-3 py-1.5 border border-emerald-200 bg-emerald-50 text-emerald-800 font-extrabold rounded-lg flex items-center justify-between">
+              <span>{monthEff.effectiveDays} Hari Efektif</span>
+              {reportData.elapsedEffectiveDays < monthEff.effectiveDays && (
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-200/60 px-1.5 py-0.5 rounded">
+                  {reportData.elapsedEffectiveDays} Berjalan
+                </span>
+              )}
             </div>
           </div>
 

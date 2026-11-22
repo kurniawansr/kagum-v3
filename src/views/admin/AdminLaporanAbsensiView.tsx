@@ -27,7 +27,8 @@ export const AdminLaporanAbsensiView: React.FC = () => {
       records = records.filter((r) => r.date.includes(`-${monthStr}-`));
     }
 
-    const hadirCount = records.filter((r) => r.status === 'Hadir').length || (filterMode === 'date' ? totalSiswa : totalSiswa * 20);
+    const hasRecords = records.length > 0;
+    const hadirCount = records.filter((r) => r.status === 'Hadir').length;
     const sakitCount = records.filter((r) => r.status === 'Sakit').length;
     const izinCount = records.filter((r) => r.status === 'Izin').length;
     const alfaCount = records.filter((r) => r.status === 'Alfa').length;
@@ -35,6 +36,7 @@ export const AdminLaporanAbsensiView: React.FC = () => {
     return {
       kelasName,
       totalSiswa,
+      hasRecords,
       hadirCount,
       sakitCount,
       izinCount,
@@ -276,18 +278,37 @@ export const AdminLaporanAbsensiView: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {students
                     .filter((s) => s.kelas === selectedClassDetail)
-                    .map((s, idx) => (
-                      <tr key={s.id}>
-                        <td className="p-2.5 text-slate-500">{idx + 1}</td>
-                        <td className="p-2.5 font-mono">{s.nisn}</td>
-                        <td className="p-2.5 font-semibold text-slate-800">{s.name}</td>
-                        <td className="p-2.5 text-center">
-                          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[11px]">
-                            • Hadir
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    .map((s, idx) => {
+                      const studentRecord = (attendanceRecords || []).find(
+                        (r) => r && r.studentId === s.id && (filterMode === 'date' ? r.date === selectedDate : true)
+                      );
+                      const status = studentRecord ? studentRecord.status : 'Belum Ada Data';
+
+                      return (
+                        <tr key={s.id}>
+                          <td className="p-2.5 text-slate-500">{idx + 1}</td>
+                          <td className="p-2.5 font-mono">{s.nisn}</td>
+                          <td className="p-2.5 font-semibold text-slate-800">{s.name}</td>
+                          <td className="p-2.5 text-center">
+                            <span
+                              className={`px-2.5 py-1 rounded-full font-bold text-[11px] ${
+                                status === 'Hadir'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : status === 'Sakit'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : status === 'Izin'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : status === 'Alfa'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {status === 'Hadir' ? '• Hadir' : status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

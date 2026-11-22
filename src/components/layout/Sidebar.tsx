@@ -22,6 +22,9 @@ import {
   ChevronRight,
   ShieldAlert,
   User,
+  RefreshCw,
+  HardDrive,
+  Database,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -164,6 +167,58 @@ export const Sidebar: React.FC = () => {
                 >
                   <Coins className="w-4 h-4" />
                   <span>2. Rekap Keuangan</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                D. PEMELIHARAAN & HOSTING
+              </p>
+              <div className="space-y-1">
+                <button
+                  onClick={() => handleSelect('update-aplikasi')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-all ${
+                    activeTab === 'update-aplikasi'
+                      ? 'bg-amber-600 text-white shadow-sm font-semibold'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <RefreshCw className="w-4 h-4 text-amber-500" />
+                    <span>1. Update Aplikasi (cPanel)</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => handleSelect('backup-restore')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-all ${
+                    activeTab === 'backup-restore'
+                      ? 'bg-emerald-800 text-white shadow-sm font-semibold'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <HardDrive className="w-4 h-4 text-sky-500" />
+                    <span>2. Backup & Restore</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => handleSelect('deploy-mysql')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-all ${
+                    activeTab === 'deploy-mysql'
+                      ? 'bg-emerald-800 text-white shadow-sm font-semibold'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Database className="w-4 h-4 text-indigo-500" />
+                    <span>3. Panduan Deploy MySQL</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
               </div>
             </div>
@@ -385,6 +440,28 @@ export const Sidebar: React.FC = () => {
                 >
                   <CircleDollarSign className="w-4 h-4" />
                   <span>4. Iuran / Sumbangan</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                E. PEMELIHARAAN HOSTING
+              </p>
+              <div className="space-y-1">
+                <button
+                  onClick={() => handleSelect('update-aplikasi')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg font-medium transition-all ${
+                    activeTab === 'update-aplikasi'
+                      ? 'bg-amber-600 text-white shadow-sm font-semibold'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <RefreshCw className="w-4 h-4 text-amber-500" />
+                    <span>Update Aplikasi (cPanel)</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
               </div>
             </div>

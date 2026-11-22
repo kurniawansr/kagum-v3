@@ -589,17 +589,15 @@ const MainLayout: React.FC = () => {
               )}
             </div>
 
-            {/* Quick cPanel Update Button - Administrator Only */}
-            {userRole === 'admin' && (
-              <button
-                onClick={() => setActiveTab('update-aplikasi')}
-                title="Unduh Paket & Update cPanel"
-                className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
-                <span className="hidden md:inline">Update cPanel</span>
-              </button>
-            )}
+            {/* Quick cPanel Update Button */}
+            <button
+              onClick={() => setActiveTab('update-aplikasi')}
+              title="Unduh Paket & Update cPanel"
+              className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden md:inline">Update cPanel</span>
+            </button>
 
             {/* Database Status Badge - Administrator Only */}
             {userRole === 'admin' && (
@@ -679,17 +677,15 @@ const MainLayout: React.FC = () => {
                     </button>
                   )}
 
-                  {userRole === 'admin' && (
-                    <button
-                      onClick={() => {
-                        setActiveTab('update-aplikasi');
-                        setProfileDropdownOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer text-left"
-                    >
-                      <RefreshCw className="w-4 h-4 text-amber-600" /> Update Aplikasi (cPanel)
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setActiveTab('update-aplikasi');
+                      setProfileDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-50 rounded-xl transition-colors cursor-pointer text-left"
+                  >
+                    <RefreshCw className="w-4 h-4 text-amber-600" /> Update Aplikasi (cPanel)
+                  </button>
 
                   <button
                     onClick={() => {

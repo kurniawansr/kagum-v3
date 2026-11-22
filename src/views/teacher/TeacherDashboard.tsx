@@ -217,7 +217,7 @@ export const TeacherDashboard: React.FC = () => {
             <span className="text-[11px] font-bold text-emerald-100 uppercase tracking-wider">Kehadiran Hari Ini</span>
             <div className="mt-2 flex items-baseline justify-between">
               <div>
-                <span className="text-3xl font-black">{isAttendanceDone ? attendancePct : 100}%</span>
+                <span className="text-3xl font-black">{isAttendanceDone ? `${attendancePct}%` : '-'}</span>
                 <p className="text-[10px] text-emerald-100 mt-0.5">
                   {isAttendanceDone ? `${hadirCount} Hadir` : 'Belum diproses'}
                 </p>
